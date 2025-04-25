@@ -16,6 +16,8 @@ from Crypto.Cipher import AES
 from tqdm import tqdm
 from csclist import CSC_DICT
 
+VERSION = "1.0.0"
+
 class CryptoUtils:
     """
     Collection of static methods for AES encryption/decryption,
@@ -480,6 +482,7 @@ class GNSFApp:
             "--dev-imei",
             help="device IMEI (will be auto‑filled if you give ≥8 digits)",
         )
+        p.add_argument("--version", action="version", version=f"GNSF {VERSION}")
 
         subs = p.add_subparsers(dest="command", required=True)
         # download

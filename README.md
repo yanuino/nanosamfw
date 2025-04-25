@@ -102,6 +102,75 @@ Just decrypt a file you already downloaded:
 
 ---
 
+## GUI Version
+
+If you prefer a graphical interface over the command line, GNSF also comes with a GUI version:
+
+![GNSF GUI Screenshot](https://github.com/keklick1337/gnsf/raw/main/screenshots/gui.png)
+
+### GUI Requirements
+
+- Python 3.6+
+- Tkinter (included with most Python installations)
+- Same dependencies as the CLI version
+
+### Running the GUI
+
+#### On Windows
+
+```bash
+# Navigate to the GNSF directory
+cd gnsf
+
+# Run the GUI
+python gnsf-GUI.py
+```
+
+#### On macOS
+
+```bash
+# Navigate to the GNSF directory
+cd gnsf
+
+# Run the GUI
+python3 gnsf-GUI.py
+```
+
+Or make it executable and double-click in Finder:
+
+```bash
+chmod +x gnsf-GUI.py
+```
+
+#### On Linux
+
+```bash
+# Navigate to the GNSF directory
+cd gnsf
+
+# Ensure Tkinter is installed (Ubuntu/Debian example)
+sudo apt-get install python3-tk
+
+# Run the GUI
+python3 gnsf-GUI.py
+```
+
+Or make it executable:
+
+```bash
+chmod +x gnsf-GUI.py
+./gnsf-GUI.py
+```
+
+### GUI Features
+
+- Easy firmware checking across multiple regions
+- Download progress with speed and ETA display
+- Auto-opening of download folder when complete
+- All the power of the CLI with a user-friendly interface
+
+---
+
 ## Handy Tips
 
 - If you only give the first 8 digits of your IMEI with `-i`, the tool will pad & Luhn‑check the rest for you.  
@@ -122,4 +191,4 @@ This project is MIT‑licensed. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-Happy flashing! 🚀  
+Happy flashing! 🚀
