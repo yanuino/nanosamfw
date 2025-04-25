@@ -106,7 +106,7 @@ Just decrypt a file you already downloaded:
 
 If you prefer a graphical interface over the command line, GNSF also comes with a GUI version:
 
-![GNSF GUI Screenshot](https://github.com/keklick1337/gnsf/raw/main/screenshots/gui.png)
+![GNSF GUI Screenshot](https://github.com/keklick1337/gnsf/blob/main/screenshots/gui.png?raw=true)
 
 ### GUI Requirements
 
