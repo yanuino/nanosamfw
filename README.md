@@ -192,3 +192,20 @@ This project is MIT‑licensed. See the [LICENSE](LICENSE) file for details.
 ---
 
 Happy flashing! 🚀
+
+---
+
+## Additional Resources
+
+### Samsung Firmware Monitor
+
+If you need to check available firmware before downloading or want to monitor the latest releases:
+
+- 🌐 **[Samsung Firmware Monitor](https://samsung-firmware.trustcrypt.com/)** - A comprehensive online database where you can browse and monitor the latest firmware releases for any Samsung device model.
+
+This resource complements GNSF by letting you:
+- Check available firmware versions across multiple devices at once
+- Monitor when new firmware gets released
+- View firmware details before downloading
+
+---
