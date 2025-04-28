@@ -77,8 +77,8 @@ Download + decrypt in one shot:
 ./gnsf.py \
   -m SM-S928B \
   -r XSA \
-  download \
   -i 12345678 \
+  download \
   -O ./downloads \
   # Replace 12345678 to your IMEI
   # optionally -v to specify a version; omit for “latest”
