@@ -310,6 +310,7 @@ CSC_DICT = {
     'SBM': 'JAPAN',
     'VFK': 'JAPAN',
     'XJP': 'JAPAN',
+    'SJP': 'JAPAN',
     'LEV': 'JORDAN',
     'ALT': 'KAZAKHSTAN',
     'EST': 'KAZAKHSTAN',
