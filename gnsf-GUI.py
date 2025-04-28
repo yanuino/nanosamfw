@@ -6,8 +6,11 @@ import os
 import subprocess
 import time
 import webbrowser
+import re
 
-from gnsf import CSC_DICT, getlatestver, FUSClient, getbinaryfile, initdownload, decrypt_file, VERSION
+from gnsf import (CSC_DICT, getlatestver, FUSClient, getbinaryfile, 
+                 initdownload, decrypt_file, VERSION, FirmwareUtils, 
+                 normalizevercode)
 
 class GNSFGUI(tk.Tk):
     def __init__(self):
@@ -68,6 +71,7 @@ class GNSFGUI(tk.Tk):
         self.ver_var = tk.StringVar()
         self.ver_entry = ttk.Entry(frm2, textvariable=self.ver_var, width=25)
         self.ver_entry.grid(row=0, column=1)
+        self.ver_var.trace_add("write", self._update_firmware_info)
         
         # Question mark button to switch to check tab
         self.help_btn = ttk.Button(frm2, text="?", width=2, 
@@ -99,6 +103,15 @@ class GNSFGUI(tk.Tk):
         self.download_btn = ttk.Button(frm2, text="Download & Decrypt", command=self._on_download)
         self.download_btn.grid(row=2, column=4, sticky=tk.E, pady=(5,0))
         
+        # Firmware info frame
+        self.fw_info_frame = ttk.LabelFrame(self.download_tab, text="Firmware Information")
+        self.fw_info_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+        
+        self.fw_info_text = scrolledtext.ScrolledText(self.fw_info_frame, height=4, wrap=tk.WORD)
+        self.fw_info_text.pack(fill=tk.X, padx=5, pady=5)
+        self.fw_info_text.insert(tk.END, "Enter a firmware version above to see information")
+        self.fw_info_text.config(state="disabled")
+        
         # Progress bar for download/decrypt
         self.dl_progress_frame = ttk.Frame(self.download_tab)
         self.dl_progress_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
@@ -116,6 +129,24 @@ class GNSFGUI(tk.Tk):
         
         self.log = scrolledtext.ScrolledText(self.log_frame, height=10, state="disabled")
         self.log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    def _update_firmware_info(self, *args):
+        """Update firmware information when version is entered"""
+        fw_version = self.ver_var.get().strip()
+        
+        self.fw_info_text.config(state="normal")
+        self.fw_info_text.delete(1.0, tk.END)
+        
+        if fw_version:
+            try:
+                info = FirmwareUtils.format_firmware_info(fw_version)
+                self.fw_info_text.insert(tk.END, info)
+            except Exception as e:
+                self.fw_info_text.insert(tk.END, f"Could not parse firmware version: {fw_version}")
+        else:
+            self.fw_info_text.insert(tk.END, "Enter a firmware version to see information")
+            
+        self.fw_info_text.config(state="disabled")
 
     def _get_default_downloads_dir(self):
         """Get the default Downloads directory based on operating system"""
@@ -199,6 +230,7 @@ class GNSFGUI(tk.Tk):
         
         ttk.Label(author_frame, text="By Keklick1337 (Vladislav Tislenko)").pack(anchor=tk.W)
         
+        # GitHub link
         link_frame = ttk.Frame(info_frame)
         link_frame.pack(fill=tk.X, pady=5)
         
@@ -206,6 +238,16 @@ class GNSFGUI(tk.Tk):
         link_label = ttk.Label(link_frame, text=link_text, foreground="blue", cursor="hand2")
         link_label.pack(anchor=tk.W)
         link_label.bind("<Button-1>", lambda e: webbrowser.open_new(link_text))
+        
+        # XDA Forums link 
+        xda_frame = ttk.Frame(info_frame)
+        xda_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(xda_frame, text="XDA Forums Discussion:").pack(anchor=tk.W)
+        xda_link = "https://xdaforums.com/t/gnsf-get-new-samsung-firmware-software-cross-platform-open-source.4732816/"
+        xda_label = ttk.Label(xda_frame, text=xda_link, foreground="blue", cursor="hand2")
+        xda_label.pack(anchor=tk.W)
+        xda_label.bind("<Button-1>", lambda e: webbrowser.open_new(xda_link))
         
         # Description
         desc_frame = ttk.LabelFrame(info_frame, text="About")
@@ -220,6 +262,7 @@ Key features:
 • Resume interrupted downloads
 • Check latest firmware versions across all regions
 • Auto-fill IMEI numbers (with correct checksum)
+• Parse firmware version strings for detailed information
 
 This GUI provides an easy-to-use interface for the GNSF command line tool.
         """
@@ -322,6 +365,7 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         self.ver_var.set(ver)
         # Switch to download tab
         self.notebook.select(self.download_tab)
+        # This will trigger firmware info update via trace
 
     def _browse_out(self):
         d = filedialog.askdirectory(initialdir=self.outdir_var.get())
@@ -345,6 +389,12 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         else:
             return f"{seconds/3600:.1f} hrs"
 
+    def _validate_imei(self, imei):
+        """Validate IMEI has at least 8 digits"""
+        if not imei or not re.match(r'^\d{8,15}$', imei):
+            return False
+        return True
+
     def _on_download(self):
         if self._downloading:
             self._downloading = False
@@ -364,7 +414,11 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         if not mdl: missing.append("Model")
         if not csc: missing.append("CSC")
         if not ver: missing.append("Firmware Version")
-        if not imei: missing.append("IMEI")
+        
+        # Enhanced IMEI validation
+        if not self._validate_imei(imei):
+            messagebox.showerror("Error", "IMEI must contain at least 8 digits")
+            return
         
         if missing:
             messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
@@ -375,6 +429,13 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         self._toggle_controls(False)
         self.check_btn.configure(state="disabled")
         os.makedirs(outdir, exist_ok=True)
+        
+        # Show firmware info in log
+        try:
+            firmware_info = FirmwareUtils.format_firmware_info(ver)
+            self._log(f"Firmware Information:\n{firmware_info}")
+        except Exception as e:
+            self._log(f"Could not parse firmware version: {ver}")
         
         def worker():
             try:

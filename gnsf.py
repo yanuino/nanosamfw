@@ -8,6 +8,7 @@ import base64
 import hashlib
 import os
 import random
+import string
 import sys
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, Optional, Tuple
@@ -16,7 +17,7 @@ from Crypto.Cipher import AES
 from tqdm import tqdm
 from csclist import CSC_DICT
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 class CryptoUtils:
     """
@@ -256,6 +257,145 @@ class FUSMessageBuilder:
         }
         FUSMessageBuilder.build_reqbody(m, params)
         return ET.tostring(m)
+
+
+class FirmwareUtils:
+    """
+    Utilities for parsing Samsung firmware version strings to extract metadata.
+    """
+    
+    @staticmethod
+    def read_firmware(firmware: str) -> Tuple[Optional[str], Optional[int], int, int, int]:
+        """
+        Gets basic information from a firmware string.
+        
+        :param firmware: Samsung firmware version string
+        :return: Tuple containing (bootloader_type, major_version, year, month, minor_version)
+        """
+        # Default values in case parsing fails
+        default_year = 2020
+        default_month = 0  # January (0-indexed)
+        
+        # First normalize to handle both slash-separated and compact formats
+        if "/" in firmware:
+            # Handle slash-separated format (newer style)
+            parts = firmware.split("/")
+            pda = parts[0][-6:] if len(parts) >= 1 and len(parts[0]) >= 6 else ""
+        else:
+            # Handle compact format (older style like N7000XXKKA)
+            # Extract the last 6 characters, assuming model prefix varies in length
+            pda = firmware[-6:] if len(firmware) >= 6 else firmware
+        
+        result = [None, None, default_year, default_month, 0]
+        
+        try:
+            # Detect if we're using the newer (R=2018+) or older (A=2001+) scheme
+            # This could be based on the year character or device model prefix
+            use_new_scheme = ord(pda[3]) >= ord('R') if len(pda) >= 4 else True
+            
+            if len(pda) >= 6 and pda[0] in ["U", "S"]:
+                # Bootloader version (U = Upgrade, S = Security)
+                result[0] = pda[0:2]
+                # Major version iteration (A = 0, B = 1, ... Z = Public Beta)
+                result[1] = ord(pda[2]) - ord("A") if pda[2] in string.ascii_uppercase else 0
+                
+                # Year calculation based on scheme
+                if use_new_scheme:
+                    # Newer devices (R=2018, S=2019, T=2020...)
+                    result[2] = (ord(pda[3]) - ord("R")) + 2018
+                else:
+                    # Older devices (A=2001, B=2002, K=2011...)
+                    result[2] = (ord(pda[3]) - ord("A")) + 2001
+                    
+                # Month (A = 01, B = 02, ... L = 12)
+                month_char = pda[4]
+                if month_char in string.ascii_uppercase and ord(month_char) - ord("A") <= 11:
+                    result[3] = ord(month_char) - ord("A")
+                else:
+                    # Invalid month character, default to January
+                    result[3] = 0
+                    
+                # Minor version iteration (1 = 1, ... A = 10 ...)
+                if pda[5] in string.digits + string.ascii_uppercase:
+                    result[4] = (string.digits + string.ascii_uppercase).index(pda[5])
+                else:
+                    result[4] = 0
+            else:
+                # Alternative format for older devices
+                if len(pda) >= 3:
+                    # Year calculation based on scheme
+                    if use_new_scheme:
+                        result[2] = (ord(pda[-3]) - ord("R")) + 2018
+                    else:
+                        result[2] = (ord(pda[-3]) - ord("A")) + 2001
+                    
+                    # Month (A = 01, B = 02, ... L = 12)
+                    if len(pda) >= 2:
+                        month_char = pda[-2]
+                        if month_char in string.ascii_uppercase and ord(month_char) - ord("A") <= 11:
+                            result[3] = ord(month_char) - ord("A")
+                        else:
+                            # Invalid month character, default to January
+                            result[3] = 0
+                        
+                    # Minor version iteration (1 = 1, ... A = 10 ...)
+                    if len(pda) >= 1:
+                        if pda[-1] in string.digits + string.ascii_uppercase:
+                            result[4] = (string.digits + string.ascii_uppercase).index(pda[-1])
+                        else:
+                            result[4] = 0
+        
+        except (IndexError, ValueError) as e:
+            # If parsing fails, log and use default values
+            # We've already initialized result with default values
+            pass
+            
+        # Ensure month is in valid range 0-11
+        if result[3] is None or result[3] < 0 or result[3] > 11:
+            result[3] = default_month
+        
+        # Ensure year is reasonable
+        if result[2] is None or result[2] < 2000 or result[2] > 2030:
+            result[2] = default_year
+        
+        return (result[0], result[1], result[2], result[3], result[4])
+
+    @staticmethod
+    def read_firmware_dict(firmware: str) -> dict:
+        """
+        Return firmware information as a dictionary with meaningful keys.
+        
+        :param firmware: Samsung firmware version string
+        :return: Dictionary with 'bl' (bootloader), 'date' (year.month), 'it' (iteration) keys
+        """
+        ff = FirmwareUtils.read_firmware(firmware)
+        return {
+            "bl": ff[0],
+            "date": f"{ff[2]}.{ff[3]+1:02d}",  # Adding 1 to month for 1-based month numbering
+            "it": f"{ff[1]}.{ff[4]}"
+        }
+    
+    @staticmethod
+    def format_firmware_info(firmware: str) -> str:
+        """
+        Format firmware information as a human-readable string.
+        
+        :param firmware: Samsung firmware version string
+        :return: Formatted string with firmware details
+        """
+        try:
+            info = FirmwareUtils.read_firmware_dict(firmware)
+            norm_fw = normalizevercode(firmware)
+            
+            result = f"Firmware: {norm_fw}\n"
+            if info["bl"]:
+                result += f"Bootloader type: {info['bl']}\n"
+            result += f"Date: {info['date']} (YYYY.MM)\n"
+            result += f"Version iteration: {info['it']}"
+            
+            return result
+        except ValueError:
+            return f"Could not parse firmware string: {firmware}"
 
 
 def getv4key(version: str, model: str, region: str, imei: str) -> Optional[bytes]:
@@ -523,7 +663,13 @@ class GNSFApp:
         # check
         if args.command == "check":
             if args.dev_region:
-                print(getlatestver(args.dev_model, args.dev_region))
+                args.fw_ver = getlatestver(args.dev_model, args.dev_region)
+                try:
+                    print(FirmwareUtils.format_firmware_info(args.fw_ver))
+                except Exception as e:
+                    print(args.fw_ver)
+                    print(f"Note: Could not parse firmware version format: {e}")
+
             else:
                 for region, name in CSC_DICT.items():
                     try:
@@ -542,7 +688,12 @@ class GNSFApp:
             # get version
             if not args.fw_ver:
                 args.fw_ver = getlatestver(args.dev_model, args.dev_region)
+            # Display firmware information
+            try:
+                print(FirmwareUtils.format_firmware_info(args.fw_ver))
+            except Exception as e:
                 print("latest version:", args.fw_ver)
+                print(f"Note: Could not parse firmware version format: {e}")
 
             client = FUSClient()
             path, fname, size = getbinaryfile(

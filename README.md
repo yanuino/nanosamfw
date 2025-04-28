@@ -108,11 +108,14 @@ If you prefer a graphical interface over the command line, GNSF also comes with 
 
 ![GNSF GUI Screenshot](https://github.com/keklick1337/gnsf/blob/main/screenshots/gui.png?raw=true)
 
+### Pre-compiled Windows Binaries
+
+Windows users can download ready-to-use executable files for both GUI and console versions from the [GitHub Releases](https://github.com/keklick1337/gnsf/releases) page - no Python installation required!
+
 ### GUI Requirements
 
 - Python 3.6+
 - Tkinter (included with most Python installations)
-- Same dependencies as the CLI version
 
 ### Running the GUI
 
