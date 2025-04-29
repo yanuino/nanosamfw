@@ -7,6 +7,8 @@ import subprocess
 import time
 import webbrowser
 import re
+import queue
+from concurrent.futures import ThreadPoolExecutor
 
 from gnsf import (CSC_DICT, getlatestver, FUSClient, getbinaryfile, 
                  initdownload, decrypt_file, VERSION, FirmwareUtils, 
@@ -324,36 +326,78 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         self.tree.delete(*self.tree.get_children())
         csc = self.csc_var.get().strip().upper()
         
+        # Create a queue for thread-safe results
+        results_queue = queue.Queue()
+        
+        def check_csc(code, name):
+            if not self._checking:
+                return
+                
+            try:
+                ver = getlatestver(mdl, code)
+                results_queue.put((code, name, ver, None))  # No error
+            except Exception as e:
+                results_queue.put((code, name, None, str(e)))  # With error
+        
+        def queue_processor():
+            while self._checking:
+                try:
+                    # Process results from queue
+                    result = results_queue.get(timeout=0.1)
+                    if result:
+                        code, name, ver, error = result
+                        
+                        if error:
+                            self._log(f"[{code}] -> error: {error}")
+                        else:
+                            self._log(f"[{code}] -> {ver}")
+                            self.tree.insert("", tk.END, values=(code, name, ver))
+                        
+                        # Update progress
+                        count = len(self.tree.get_children())
+                        progress = int((count / total) * 100)
+                        self.check_status_var.set(f"Checked {count}/{total} regions")
+                        self.check_progress["value"] = progress
+                    
+                    results_queue.task_done()
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    self._log(f"Error processing results: {e}")
+            
         def worker():
             targets = {csc: CSC_DICT.get(csc, csc)} if csc else CSC_DICT
+            nonlocal total
             total = len(targets)
-            count = 0
             
-            for code, name in targets.items():
-                if not self._checking:
-                    break
-                    
-                try:
-                    # Update progress
-                    count += 1
-                    progress = int((count / total) * 100)
-                    self.check_status_var.set(f"Checking {code} ({count}/{total})")
-                    self.check_progress["value"] = progress
-                    
-                    ver = getlatestver(mdl, code)
-                    self._log(f"[{code}] -> {ver}")
-                    self.tree.insert("", tk.END, values=(code, name, ver))
-                except Exception as e:
-                    self._log(f"[{code}] -> error: {e}")
-                    
-                self.update_idletasks()
+            # Start queue processor thread
+            processor_thread = threading.Thread(target=queue_processor, daemon=True)
+            processor_thread.start()
+            
+            # Use thread pool for CSC checking
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                # Submit all CSC check tasks
+                futures = [executor.submit(check_csc, code, name) 
+                          for code, name in targets.items()]
+                
+                # Wait for all tasks to complete or be cancelled
+                for future in futures:
+                    try:
+                        future.result()
+                    except Exception:
+                        pass
+            
+            # Allow queue to process remaining results
+            if self._checking:
+                results_queue.join()
             
             # Reset UI state
             self._checking = False
             self.check_btn.configure(text="Check Versions")
             self._toggle_controls(True)
-            self.check_status_var.set(f"Done: {count} regions checked")
-            
+            self.check_status_var.set(f"Done: {len(self.tree.get_children())}/{total} regions checked")
+        
+        total = 0  # Define as nonlocal in worker
         self._check_thread = threading.Thread(target=worker, daemon=True)
         self._check_thread.start()
 
@@ -450,10 +494,39 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 path, fname, size = getbinaryfile(client, ver, mdl, imei, csc)
                 
                 fullpath = os.path.join(outdir, fname)
-                offset = os.path.getsize(fullpath) if os.path.exists(fullpath) else 0
-                mode = "ab" if offset and offset < size else "wb"
+                decrypted_path = fullpath.rsplit(".", 1)[0] if fname.endswith((".enc2", ".enc4")) else None
                 
-                resuming = offset > 0 and offset < size
+                # Check if already decrypted file exists
+                if decrypted_path and os.path.exists(decrypted_path):
+                    if messagebox.askyesno("File Exists", 
+                                          f"Decrypted file already exists. Re-download and decrypt?"):
+                        # Delete both encrypted and decrypted files to start fresh
+                        if os.path.exists(fullpath):
+                            os.remove(fullpath)
+                        os.remove(decrypted_path)
+                    else:
+                        self._log(f"Skipping download - file already exists: {os.path.basename(decrypted_path)}")
+                        self.dl_status_var.set("Skipped - file exists")
+                        self.dl_progress["value"] = 100
+                        return
+                
+                # Always force resume if file exists but is incomplete
+                offset = 0
+                if os.path.exists(fullpath):
+                    file_size = os.path.getsize(fullpath)
+                    if file_size == size:
+                        # File is complete, just need to decrypt
+                        self._log(f"Download file already complete: {fname}")
+                        resuming = False
+                    else:
+                        # Resume download from offset
+                        offset = file_size
+                        resuming = True
+                else:
+                    resuming = False
+                    
+                mode = "ab" if resuming else "wb"
+                
                 self._log(f"{'Resuming' if resuming else 'Downloading'} {fname}")
                 self.dl_status_var.set(f"{'Resuming' if resuming else 'Downloading'} {fname}")
                 self.dl_progress["value"] = 15
@@ -505,19 +578,37 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 
                 # Decrypt if needed
                 if not self.nodecrypt_var.get() and fname.endswith((".enc2", ".enc4")):
-                    dec = fullpath.rsplit(".",1)[0]
-                    self._log("Decrypting...")
-                    self.dl_status_var.set("Decrypting...")
-                    self.dl_progress["value"] = 80
+                    dec = fullpath.rsplit(".", 1)[0]
                     
-                    args = type("A", (), {})()
-                    args.dev_model, args.dev_region, args.dev_imei, args.fw_ver = mdl, csc, imei, ver
-                    decrypt_file(args, 2 if fname.endswith(".enc2") else 4, fullpath, dec)
-                    
-                    self._log(f"Decrypted to {dec}")
-                    self.dl_status_var.set(f"Decrypted to {os.path.basename(dec)}")
-                    self.dl_progress["value"] = 95
-                    os.remove(fullpath)
+                    try:
+                        self._log("Decrypting...")
+                        self.dl_status_var.set("Decrypting...")
+                        self.dl_progress["value"] = 80
+                        
+                        args = type("A", (), {})()
+                        args.dev_model, args.dev_region, args.dev_imei, args.fw_ver = mdl, csc, imei, ver
+                        
+                        # Check that both the source file exists and has content
+                        if not os.path.exists(fullpath) or os.path.getsize(fullpath) == 0:
+                            raise Exception(f"Source file {os.path.basename(fullpath)} is missing or empty")
+                            
+                        # Ensure the output directory exists
+                        os.makedirs(os.path.dirname(dec), exist_ok=True)
+                        
+                        decrypt_file(args, 2 if fname.endswith(".enc2") else 4, fullpath, dec)
+                        
+                        if os.path.exists(dec) and os.path.getsize(dec) > 0:
+                            self._log(f"Decrypted to {dec}")
+                            self.dl_status_var.set(f"Decrypted to {os.path.basename(dec)}")
+                            self.dl_progress["value"] = 95
+                            os.remove(fullpath)
+                        else:
+                            raise Exception("Decryption produced empty or missing file")
+                            
+                    except Exception as e:
+                        self._log(f"Decryption error: {e}")
+                        self.dl_status_var.set(f"Decryption failed: {str(e)[:30]}...")
+                        messagebox.showerror("Decryption Error", str(e))
                 
                 self._log("Opening folder...")
                 self.dl_status_var.set("Complete - Opening folder")
