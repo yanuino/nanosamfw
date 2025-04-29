@@ -17,7 +17,7 @@ from Crypto.Cipher import AES
 from tqdm import tqdm
 from csclist import CSC_DICT
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 class CryptoUtils:
     """

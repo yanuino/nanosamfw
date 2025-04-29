@@ -260,19 +260,31 @@ class GNSFGUI(tk.Tk):
         self.dec_ver_var = tk.StringVar()
         self.dec_ver_entry = ttk.Entry(decrypt_frame, textvariable=self.dec_ver_var, width=30)
         self.dec_ver_entry.grid(row=3, column=1, sticky=tk.W, pady=5)
+
+        # Add IMEI field (new)
+        ttk.Label(decrypt_frame, text="IMEI (for ENC4):*").grid(row=4, column=0, sticky=tk.W)
+        self.dec_imei_var = tk.StringVar()
+        # Link it to the main IMEI field for convenience
+        self.dec_imei_var.set(self.imei_var.get())
+        self.dec_imei_entry = ttk.Entry(decrypt_frame, textvariable=self.dec_imei_var, width=20)
+        self.dec_imei_entry.grid(row=4, column=1, sticky=tk.W, pady=5)
+        # Add a help text for better UX
+        ttk.Label(decrypt_frame, text="(Required for ENC4 files)").grid(
+            row=4, column=2, sticky=tk.W, padx=(5, 0), pady=5
+        )
         
         # Note about required fields
         ttk.Label(decrypt_frame, text="* Required fields").grid(
-            row=4, column=1, columnspan=2, sticky=tk.E, pady=(10, 0)
+            row=5, column=1, columnspan=2, sticky=tk.E, pady=(10, 0)
         )
         
         # Decrypt button
         self.decrypt_btn = ttk.Button(decrypt_frame, text="Decrypt File", command=self._on_manual_decrypt)
-        self.decrypt_btn.grid(row=4, column=0, sticky=tk.W, pady=(10, 0))
+        self.decrypt_btn.grid(row=5, column=0, sticky=tk.W, pady=(10, 0))
         
         # Progress bar
         self.dec_progress_frame = ttk.Frame(decrypt_frame)
-        self.dec_progress_frame.grid(row=5, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.dec_progress_frame.grid(row=6, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
         
         self.dec_status_var = tk.StringVar(value="Ready")
         ttk.Label(self.dec_progress_frame, textvariable=self.dec_status_var).pack(side=tk.LEFT)
@@ -287,8 +299,8 @@ class GNSFGUI(tk.Tk):
         
         # Log area
         self.dec_log_frame = ttk.LabelFrame(decrypt_frame, text="Decrypt Log")
-        self.dec_log_frame.grid(row=6, column=0, columnspan=3, sticky=tk.NSEW, pady=(10, 0))
-        decrypt_frame.rowconfigure(6, weight=1)
+        self.dec_log_frame.grid(row=7, column=0, columnspan=3, sticky=tk.NSEW, pady=(10, 0))
+        decrypt_frame.rowconfigure(7, weight=1)
         
         self.dec_log = scrolledtext.ScrolledText(self.dec_log_frame, height=10, state="disabled")
         self.dec_log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -298,6 +310,9 @@ class GNSFGUI(tk.Tk):
         
         # Set up file change tracking
         self.enc_file_var.trace_add("write", self._on_enc_file_change)
+        
+        # Link main IMEI and decrypt IMEI fields to keep them in sync
+        self.imei_var.trace_add("write", lambda *args: self.dec_imei_var.set(self.imei_var.get()))
 
     def _update_enc_type_state(self):
         """Enable/disable encryption type radio buttons based on autodetect setting"""
@@ -384,7 +399,7 @@ class GNSFGUI(tk.Tk):
         firmware = self.dec_ver_var.get().strip()
         model = self.model_var.get().strip()
         csc = self.csc_var.get().strip().upper()
-        imei = self.imei_var.get().strip()
+        imei = self.dec_imei_var.get().strip()  # Use dedicated IMEI field
         enc_type = self.enc_type_var.get()
         
         missing = []
@@ -397,10 +412,6 @@ class GNSFGUI(tk.Tk):
         if enc_type == 4:
             if not csc: missing.append("CSC")
             if not self._validate_imei(imei): missing.append("IMEI")
-        
-        if missing:
-            messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
-            return
         
         # Check if input file exists
         if not os.path.exists(enc_file):
