@@ -8,6 +8,7 @@ import time
 import webbrowser
 import re
 import queue
+import platform
 from concurrent.futures import ThreadPoolExecutor
 
 from gnsf import (CSC_DICT, getlatestver, FUSClient, getbinaryfile, 
@@ -49,10 +50,12 @@ class GNSFGUI(tk.Tk):
         # Create tabs
         self.download_tab = ttk.Frame(self.notebook)
         self.check_tab = ttk.Frame(self.notebook)
+        self.decrypt_tab = ttk.Frame(self.notebook)  # Add new decrypt tab
         self.info_tab = ttk.Frame(self.notebook)
         
         self.notebook.add(self.download_tab, text="Download")
         self.notebook.add(self.check_tab, text="Check CSC Versions")
+        self.notebook.add(self.decrypt_tab, text="Manual Decrypt")  # Add to notebook
         self.notebook.add(self.info_tab, text="Info")
         
         # Setup Download Tab
@@ -61,8 +64,14 @@ class GNSFGUI(tk.Tk):
         # Setup Check CSC Tab
         self._create_check_tab()
         
+        # Setup Manual Decrypt Tab
+        self._create_decrypt_tab()
+        
         # Setup Info Tab
         self._create_info_tab()
+        
+        # Bind tab switching to prevent changing tabs during operations
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
 
     def _create_download_tab(self):
         # Download options frame
@@ -132,30 +141,6 @@ class GNSFGUI(tk.Tk):
         self.log = scrolledtext.ScrolledText(self.log_frame, height=10, state="disabled")
         self.log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-    def _update_firmware_info(self, *args):
-        """Update firmware information when version is entered"""
-        fw_version = self.ver_var.get().strip()
-        
-        self.fw_info_text.config(state="normal")
-        self.fw_info_text.delete(1.0, tk.END)
-        
-        if fw_version:
-            try:
-                info = FirmwareUtils.format_firmware_info(fw_version)
-                self.fw_info_text.insert(tk.END, info)
-            except Exception as e:
-                self.fw_info_text.insert(tk.END, f"Could not parse firmware version: {fw_version}")
-        else:
-            self.fw_info_text.insert(tk.END, "Enter a firmware version to see information")
-            
-        self.fw_info_text.config(state="disabled")
-
-    def _get_default_downloads_dir(self):
-        """Get the default Downloads directory based on operating system"""
-        home = os.path.expanduser("~")
-
-        return os.path.join(home, "Downloads", "SamsungFirmware")
-
     def _create_check_tab(self):
         # Check control frame
         check_frame = ttk.Frame(self.check_tab)
@@ -213,6 +198,290 @@ class GNSFGUI(tk.Tk):
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
     
+    def _create_decrypt_tab(self):
+        """Create the Manual Decrypt tab"""
+        # Main frame
+        decrypt_frame = ttk.Frame(self.decrypt_tab, padding=10)
+        decrypt_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Input file selection
+        ttk.Label(decrypt_frame, text="Encrypted File:*").grid(row=0, column=0, sticky=tk.W)
+        
+        input_frame = ttk.Frame(decrypt_frame)
+        input_frame.grid(row=0, column=1, columnspan=2, sticky=tk.EW, pady=5)
+        input_frame.columnconfigure(0, weight=1)
+        
+        self.enc_file_var = tk.StringVar()
+        self.enc_file_entry = ttk.Entry(input_frame, textvariable=self.enc_file_var, width=50)
+        self.enc_file_entry.grid(row=0, column=0, sticky=tk.EW)
+        
+        self.enc_browse_btn = ttk.Button(input_frame, text="Browse", command=self._browse_enc_file)
+        self.enc_browse_btn.grid(row=0, column=1, padx=(5, 0))
+        
+        # Output file/directory
+        ttk.Label(decrypt_frame, text="Output File:*").grid(row=1, column=0, sticky=tk.W)
+        
+        output_frame = ttk.Frame(decrypt_frame)
+        output_frame.grid(row=1, column=1, columnspan=2, sticky=tk.EW, pady=5)
+        output_frame.columnconfigure(0, weight=1)
+        
+        self.dec_file_var = tk.StringVar()
+        self.dec_file_entry = ttk.Entry(output_frame, textvariable=self.dec_file_var, width=50)
+        self.dec_file_entry.grid(row=0, column=0, sticky=tk.EW)
+        
+        self.dec_browse_btn = ttk.Button(output_frame, text="Browse", command=self._browse_dec_file)
+        self.dec_browse_btn.grid(row=0, column=1, padx=(5, 0))
+        
+        # Encryption type selection
+        ttk.Label(decrypt_frame, text="Encryption Type:*").grid(row=2, column=0, sticky=tk.W)
+        
+        self.enc_type_var = tk.IntVar(value=4)  # Default to ENC4
+        enc_type_frame = ttk.Frame(decrypt_frame)
+        enc_type_frame.grid(row=2, column=1, sticky=tk.W, pady=5)
+        
+        self.enc2_radio = ttk.Radiobutton(enc_type_frame, text="ENC2", variable=self.enc_type_var, value=2)
+        self.enc2_radio.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.enc4_radio = ttk.Radiobutton(enc_type_frame, text="ENC4", variable=self.enc_type_var, value=4)
+        self.enc4_radio.pack(side=tk.LEFT)
+        
+        # Auto-detect encryption type from file extension
+        self.autodetect_enc_var = tk.BooleanVar(value=True)
+        self.autodetect_check = ttk.Checkbutton(
+            decrypt_frame, 
+            text="Auto-detect from filename", 
+            variable=self.autodetect_enc_var,
+            command=self._update_enc_type_state
+        )
+        self.autodetect_check.grid(row=2, column=2, sticky=tk.W)
+        
+        # Firmware version
+        ttk.Label(decrypt_frame, text="Firmware Version:*").grid(row=3, column=0, sticky=tk.W)
+        self.dec_ver_var = tk.StringVar()
+        self.dec_ver_entry = ttk.Entry(decrypt_frame, textvariable=self.dec_ver_var, width=30)
+        self.dec_ver_entry.grid(row=3, column=1, sticky=tk.W, pady=5)
+        
+        # Note about required fields
+        ttk.Label(decrypt_frame, text="* Required fields").grid(
+            row=4, column=1, columnspan=2, sticky=tk.E, pady=(10, 0)
+        )
+        
+        # Decrypt button
+        self.decrypt_btn = ttk.Button(decrypt_frame, text="Decrypt File", command=self._on_manual_decrypt)
+        self.decrypt_btn.grid(row=4, column=0, sticky=tk.W, pady=(10, 0))
+        
+        # Progress bar
+        self.dec_progress_frame = ttk.Frame(decrypt_frame)
+        self.dec_progress_frame.grid(row=5, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        
+        self.dec_status_var = tk.StringVar(value="Ready")
+        ttk.Label(self.dec_progress_frame, textvariable=self.dec_status_var).pack(side=tk.LEFT)
+        
+        self.dec_progress = ttk.Progressbar(
+            self.dec_progress_frame, 
+            orient="horizontal", 
+            length=100, 
+            mode="determinate"
+        )
+        self.dec_progress.pack(fill=tk.X, expand=True, padx=(5, 0))
+        
+        # Log area
+        self.dec_log_frame = ttk.LabelFrame(decrypt_frame, text="Decrypt Log")
+        self.dec_log_frame.grid(row=6, column=0, columnspan=3, sticky=tk.NSEW, pady=(10, 0))
+        decrypt_frame.rowconfigure(6, weight=1)
+        
+        self.dec_log = scrolledtext.ScrolledText(self.dec_log_frame, height=10, state="disabled")
+        self.dec_log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Set encryption state based on autodetect option
+        self._update_enc_type_state()
+        
+        # Set up file change tracking
+        self.enc_file_var.trace_add("write", self._on_enc_file_change)
+
+    def _update_enc_type_state(self):
+        """Enable/disable encryption type radio buttons based on autodetect setting"""
+        state = "disabled" if self.autodetect_enc_var.get() else "normal"
+        self.enc2_radio.configure(state=state)
+        self.enc4_radio.configure(state=state)
+        
+        # If autodetect is enabled, try to detect from filename
+        if self.autodetect_enc_var.get():
+            self._detect_enc_type_from_file()
+
+    def _detect_enc_type_from_file(self):
+        """Detect encryption type from file extension"""
+        filename = self.enc_file_var.get()
+        if filename.lower().endswith('.enc2'):
+            self.enc_type_var.set(2)
+        elif filename.lower().endswith('.enc4'):
+            self.enc_type_var.set(4)
+        
+        # Also try to auto-generate output filename
+        if filename and (filename.lower().endswith('.enc2') or filename.lower().endswith('.enc4')):
+            base_filename = filename.rsplit('.', 1)[0]
+            if not self.dec_file_var.get():
+                self.dec_file_var.set(self._get_unique_filename(base_filename))
+
+    def _on_enc_file_change(self, *args):
+        """Handle changes to the encrypted file path"""
+        if self.autodetect_enc_var.get():
+            self._detect_enc_type_from_file()
+
+    def _browse_enc_file(self):
+        """Browse for encrypted input file"""
+        filetypes = [
+            ("Encrypted Files", "*.enc2 *.enc4"),
+            ("ENC2 Files", "*.enc2"),
+            ("ENC4 Files", "*.enc4"),
+            ("All Files", "*.*"),
+        ]
+        filename = filedialog.askopenfilename(
+            title="Select Encrypted File",
+            filetypes=filetypes
+        )
+        if filename:
+            self.enc_file_var.set(filename)
+            # The trace on self.enc_file_var will call _on_enc_file_change
+
+    def _browse_dec_file(self):
+        """Browse for decrypted output file"""
+        # Get suggested filename
+        input_file = self.enc_file_var.get()
+        initial_file = ""
+        
+        if input_file:
+            # Create a default output filename
+            if input_file.lower().endswith(('.enc2', '.enc4')):
+                initial_file = os.path.basename(input_file.rsplit('.', 1)[0])
+        
+        filename = filedialog.asksaveasfilename(
+            title="Save Decrypted File As",
+            initialfile=initial_file
+        )
+        if filename:
+            self.dec_file_var.set(filename)
+
+    def _dec_log(self, msg):
+        """Log to the decrypt tab log"""
+        self.dec_log.configure(state="normal")
+        self.dec_log.insert(tk.END, msg + "\n")
+        self.dec_log.see(tk.END)
+        self.dec_log.configure(state="disabled")
+
+    def _on_manual_decrypt(self):
+        """Handle the manual decrypt button click"""
+        # Check if we're already decrypting
+        if hasattr(self, '_decrypting') and self._decrypting:
+            self._decrypting = False
+            self.decrypt_btn.configure(text="Decrypt File")
+            self._dec_log("Decryption cancelled by user")
+            return
+            
+        # Validate fields
+        enc_file = self.enc_file_var.get().strip()
+        dec_file = self.dec_file_var.get().strip()
+        firmware = self.dec_ver_var.get().strip()
+        model = self.model_var.get().strip()
+        csc = self.csc_var.get().strip().upper()
+        imei = self.imei_var.get().strip()
+        enc_type = self.enc_type_var.get()
+        
+        missing = []
+        if not enc_file: missing.append("Encrypted File")
+        if not dec_file: missing.append("Output File")
+        if not firmware: missing.append("Firmware Version")
+        if not model: missing.append("Model")
+        
+        # For ENC4, we need CSC and IMEI too
+        if enc_type == 4:
+            if not csc: missing.append("CSC")
+            if not self._validate_imei(imei): missing.append("IMEI")
+        
+        if missing:
+            messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
+            return
+        
+        # Check if input file exists
+        if not os.path.exists(enc_file):
+            messagebox.showerror("Error", f"Input file doesn't exist: {enc_file}")
+            return
+        
+        # Make sure output directory exists
+        out_dir = os.path.dirname(dec_file)
+        if out_dir and not os.path.exists(out_dir):
+            try:
+                os.makedirs(out_dir, exist_ok=True)
+            except:
+                messagebox.showerror("Error", f"Couldn't create output directory: {out_dir}")
+                return
+        
+        # Start decryption
+        self._decrypting = True
+        self.decrypt_btn.configure(text="Cancel")
+        
+        # Clear log
+        self.dec_log.configure(state="normal")
+        self.dec_log.delete(1.0, tk.END)
+        self.dec_log.configure(state="disabled")
+        
+        # Reset progress bar
+        self.dec_progress["value"] = 0
+        self.dec_status_var.set("Preparing to decrypt...")
+        
+        def decrypt_worker():
+            try:
+                self._dec_log(f"Decrypting {os.path.basename(enc_file)}")
+                self._dec_log(f"Encryption type: ENC{enc_type}")
+                self._dec_log(f"Firmware version: {firmware}")
+                
+                self.dec_status_var.set("Getting decryption key...")
+                self.dec_progress["value"] = 10
+                
+                # Create args for decrypt_file function
+                args = type("A", (), {})()
+                args.dev_model = model
+                args.dev_region = csc
+                args.dev_imei = imei
+                args.fw_ver = firmware
+                
+                # Check that source file exists and has content
+                if not os.path.exists(enc_file) or os.path.getsize(enc_file) == 0:
+                    raise Exception(f"Source file {os.path.basename(enc_file)} is missing or empty")
+                
+                # Start decryption
+                self.dec_status_var.set("Decrypting...")
+                self.dec_progress["value"] = 20
+                
+                # Create progress monitor
+                def progress_callback(percent):
+                    if not self._decrypting:
+                        return False  # Cancel
+                    self.dec_progress["value"] = 20 + (percent * 0.7)  # Scale to 20-90%
+                    return True  # Continue
+                
+                # Call decrypt_file with our wrapper
+                result = decrypt_file(args, enc_type, enc_file, dec_file)
+                
+                if result == 0:
+                    self._dec_log(f"Successfully decrypted to: {dec_file}")
+                    self.dec_status_var.set("Decryption completed")
+                    self.dec_progress["value"] = 100
+                else:
+                    raise Exception("Decryption failed with unknown error")
+                
+            except Exception as e:
+                self._dec_log(f"Decryption error: {e}")
+                self.dec_status_var.set(f"Error: {str(e)[:30]}...")
+                messagebox.showerror("Decryption Error", str(e))
+            finally:
+                # Reset UI state
+                self._decrypting = False
+                self.decrypt_btn.configure(text="Decrypt File")
+        
+        # Start the decryption in a background thread
+        threading.Thread(target=decrypt_worker, daemon=True).start()
+
     def _create_info_tab(self):
         # Info frame with padding
         info_frame = ttk.Frame(self.info_tab, padding=15)
@@ -303,9 +572,53 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         self.imei_entry.configure(state=state)
         self.outdir_entry.configure(state=state)
         self.decrypt_check.configure(state=state)
-        self.download_btn.configure(state=state)
         self.browse_btn.configure(state=state)
         self.help_btn.configure(state=state)
+        
+        # Don't disable the download button - it's our cancel button
+        # during downloads. Instead, manage its state separately.
+        if not self._downloading:
+            self.download_btn.configure(state=state)
+        else:
+            # During download, keep the button enabled
+            self.download_btn.configure(state="normal")
+        
+        # If we're checking CSC, disable tree selection
+        self.tree.configure(selectmode="browse" if not self._checking else "none")
+
+    def _on_tab_change(self, event):
+        """Handle tab changes and prevent switching during operations"""
+        # Get the newly selected tab index
+        new_tab = self.notebook.index("current")
+        tab_name = self.notebook.tab(new_tab, "text")
+        
+        # If we're currently checking CSC versions, only allow staying on the Check tab
+        if self._checking and tab_name != "Check CSC Versions":
+            # Show warning and switch back to check tab
+            messagebox.showwarning(
+                "Operation in Progress",
+                "Please stop the CSC check operation before switching tabs."
+            )
+            self.notebook.select(self.check_tab)
+            return
+        
+        # If we're downloading, only allow staying on the Download tab
+        if self._downloading and tab_name != "Download":
+            messagebox.showwarning(
+                "Operation in Progress",
+                "Please cancel the download operation before switching tabs."
+            )
+            self.notebook.select(self.download_tab)
+            return
+        
+        # If we're in manual decrypt tab and decrypting, prevent switching
+        if hasattr(self, '_decrypting') and self._decrypting and tab_name != "Manual Decrypt":
+            messagebox.showwarning(
+                "Operation in Progress",
+                "Please cancel the decryption operation before switching tabs."
+            )
+            self.notebook.select(self.decrypt_tab)
+            return
 
     def _on_check(self):
         if self._checking:
@@ -322,7 +635,7 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
             
         self._checking = True
         self.check_btn.configure(text="Stop")
-        self._toggle_controls(False)
+        self._toggle_controls(False)  # This will now also disable tree selection
         self.tree.delete(*self.tree.get_children())
         csc = self.csc_var.get().strip().upper()
         
@@ -402,11 +715,24 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         self._check_thread.start()
 
     def _on_select(self, evt):
+        """Handle selection in the CSC versions tree"""
+        # If we're checking, don't allow selection
+        if self._checking:
+            messagebox.showinfo("Operation in Progress", 
+                               "Please stop the CSC check operation before selecting a version.")
+            return
+        
         sel = self.tree.selection()
-        if not sel: return
+        if not sel: 
+            return
+            
         code, name, ver = self.tree.item(sel[0], "values")
         self.csc_var.set(code)
         self.ver_var.set(ver)
+        
+        # Also update the manual decrypt tab's firmware version
+        self.dec_ver_var.set(ver)
+        
         # Switch to download tab
         self.notebook.select(self.download_tab)
         # This will trigger firmware info update via trace
@@ -458,6 +784,32 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
             if not os.path.exists(new_path):
                 return new_path
             counter += 1
+
+    def _get_default_downloads_dir(self):
+        """Return the default downloads directory based on the platform"""
+        DEFAULT_FOLDER = 'SamsungFirmware'
+        try:
+            return os.path.join(os.path.expanduser('~'), 'Downloads', DEFAULT_FOLDER)
+        except Exception:
+            # Fallback to current directory if we can't determine downloads dir
+            return os.path.abspath('.')
+
+    def _open_folder(self, path):
+        """
+        Open a folder in the system file explorer in a platform-independent way
+        
+        :param path: Path to the folder to open
+        """
+        try:
+            if platform.system() == "Windows":
+                os.startfile(path)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(["open", path], check=False)
+            else:  # Linux/Unix variants
+                subprocess.run(["xdg-open", path], check=False)
+            self._log(f"Opened folder: {path}")
+        except Exception as e:
+            self._log(f"Could not open folder: {e}")
 
     def _on_download(self):
         if self._downloading:
@@ -516,72 +868,77 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 fullpath = os.path.join(outdir, fname)
                 decrypted_path = fullpath.rsplit(".", 1)[0] if fname.endswith((".enc2", ".enc4")) else None
                 
-                # Always force resume if file exists but is incomplete
-                offset = 0
+                # Check if file already exists
+                file_complete = False
                 if os.path.exists(fullpath):
                     file_size = os.path.getsize(fullpath)
                     if file_size == size:
                         # File is complete, just need to decrypt
                         self._log(f"Download file already complete: {fname}")
-                        resuming = False
+                        file_complete = True
+                        self.dl_progress["value"] = 50  # Skip to 50% progress
+                        self.dl_status_var.set("File already downloaded")
                     else:
                         # Resume download from offset
                         offset = file_size
                         resuming = True
                         self._log(f"Resuming download from {self._format_size(offset)}")
                 else:
+                    offset = 0
                     resuming = False
+                
+                # Only download if file is not complete
+                if not file_complete:
+                    mode = "ab" if resuming else "wb"
                     
-                mode = "ab" if resuming else "wb"
-                
-                self._log(f"{'Resuming' if resuming else 'Downloading'} {fname}")
-                self.dl_status_var.set(f"{'Resuming' if resuming else 'Downloading'} {fname}")
-                self.dl_progress["value"] = 15
-                
-                initdownload(client, fname)
-                resp = client.downloadfile(path + fname, offset)
-                
-                # For download progress tracking
-                self._download_start_time = time.time()
-                speed_update_interval = 1.0  # Update speed every second
-                last_update = self._download_start_time
-                
-                with open(fullpath, mode) as f:
-                    downloaded = offset
-                    for chunk in resp.iter_content(0x10000):
-                        if not self._downloading:
-                            return
-                        if not chunk: 
-                            break
+                    self._log(f"{'Resuming' if resuming else 'Downloading'} {fname}")
+                    self.dl_status_var.set(f"{'Resuming' if resuming else 'Downloading'} {fname}")
+                    self.dl_progress["value"] = 15
+                    
+                    initdownload(client, fname)
+                    resp = client.downloadfile(path + fname, offset)
+                    
+                    # For download progress tracking
+                    self._download_start_time = time.time()
+                    speed_update_interval = 1.0  # Update speed every second
+                    last_update = self._download_start_time
+                    
+                    with open(fullpath, mode) as f:
+                        downloaded = offset
+                        for chunk in resp.iter_content(0x10000):
+                            if not self._downloading:
+                                return
+                            if not chunk: 
+                                break
+                                
+                            f.write(chunk)
+                            f.flush()
+                            downloaded += len(chunk)
                             
-                        f.write(chunk)
-                        f.flush()
-                        downloaded += len(chunk)
-                        
-                        # Calculate progress percentage
-                        progress = int(50 + (downloaded / size) * 30)  # Scale to 50-80%
-                        self.dl_progress["value"] = progress
-                        
-                        # Update speed and ETA every second
-                        current_time = time.time()
-                        if current_time - last_update >= speed_update_interval:
-                            elapsed = current_time - self._download_start_time
-                            speed = downloaded / elapsed if elapsed > 0 else 0
+                            # Calculate progress percentage
+                            progress = int(50 + (downloaded / size) * 30)  # Scale to 50-80%
+                            self.dl_progress["value"] = progress
                             
-                            # Calculate ETA
-                            remaining_bytes = size - downloaded
-                            eta = remaining_bytes / speed if speed > 0 else 0
-                            
-                            speed_str = self._format_size(speed) + "/s"
-                            eta_str = self._format_time(eta)
-                            
-                            status = f"Downloading: {self._format_size(downloaded)}/{self._format_size(size)} • {speed_str} • ETA: {eta_str}"
-                            self.dl_status_var.set(status)
-                            last_update = current_time
-                            
-                        self.update_idletasks()
-                
-                self._log("Download complete")
+                            # Update speed and ETA every second
+                            current_time = time.time()
+                            if current_time - last_update >= speed_update_interval:
+                                elapsed = current_time - self._download_start_time
+                                speed = downloaded / elapsed if elapsed > 0 else 0
+                                
+                                # Calculate ETA
+                                remaining_bytes = size - downloaded
+                                eta = remaining_bytes / speed if speed > 0 else 0
+                                
+                                speed_str = self._format_size(speed) + "/s"
+                                eta_str = self._format_time(eta)
+                                
+                                status = f"Downloading: {self._format_size(downloaded)}/{self._format_size(size)} • {speed_str} • ETA: {eta_str}"
+                                self.dl_status_var.set(status)
+                                last_update = current_time
+                                
+                            self.update_idletasks()
+                    
+                    self._log("Download complete")
                 
                 # Decrypt if needed
                 if not self.nodecrypt_var.get() and fname.endswith((".enc2", ".enc4")):
@@ -627,7 +984,7 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 self._log("Opening folder...")
                 self.dl_status_var.set("Complete - Opening folder")
                 self.dl_progress["value"] = 100
-                subprocess.run(["open", outdir], check=False)
+                self._open_folder(outdir)  # Use our platform-specific method
                 
             except Exception as e:
                 self._log(f"Error: {e}")
@@ -642,6 +999,33 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 
         self._download_thread = threading.Thread(target=worker, daemon=True)
         self._download_thread.start()
+
+    def _update_firmware_info(self, *args):
+        """Update firmware information when version changes"""
+        try:
+            ver = self.ver_var.get().strip()
+            
+            # Clear existing text
+            self.fw_info_text.configure(state="normal")
+            self.fw_info_text.delete(1.0, tk.END)
+            
+            if not ver:
+                self.fw_info_text.insert(tk.END, "Enter a firmware version to see information")
+                self.fw_info_text.configure(state="disabled")
+                return
+                
+            # Try to parse and format firmware info
+            try:
+                info = FirmwareUtils.format_firmware_info(ver)
+                self.fw_info_text.insert(tk.END, info)
+            except Exception as e:
+                self.fw_info_text.insert(tk.END, f"Could not parse firmware version: {ver}\n{str(e)}")
+                
+        except Exception as e:
+            self.fw_info_text.insert(tk.END, f"Error: {str(e)}")
+            
+        finally:
+            self.fw_info_text.configure(state="disabled")
 
 if __name__ == "__main__":
     app = GNSFGUI()
