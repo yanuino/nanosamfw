@@ -16,6 +16,8 @@ import requests
 from Crypto.Cipher import AES
 from tqdm import tqdm
 from csclist import CSC_DICT
+import concurrent.futures
+import threading
 
 VERSION = "1.0.2"
 
@@ -671,12 +673,27 @@ class GNSFApp:
                     print(f"Note: Could not parse firmware version format: {e}")
 
             else:
-                for region, name in CSC_DICT.items():
+                # Create a thread-safe print lock to avoid garbled output
+                print_lock = threading.Lock()
+                
+                def check_region(region_pair):
+                    """Worker function to check firmware for a single region"""
+                    region, name = region_pair
                     try:
                         ver = getlatestver(args.dev_model, region)
-                        print(f"CSC [{region}] ({name}) -> {ver}")
+                        with print_lock:
+                            print(f"CSC [{region}] ({name}) -> {ver}")
+                        return True
                     except Exception as e:
-                        print(f"CSC [{region}] ({name}) -> not found. {e}")
+                        with print_lock:
+                            print(f"CSC [{region}] ({name}) -> not found. {e}")
+                        return False
+
+                # Use ThreadPoolExecutor with 10 workers to check all regions in parallel
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    # Submit all regions to the thread pool and wait for completion
+                    list(executor.map(check_region, CSC_DICT.items()))
+                    
             return 0
 
         # download needs region
