@@ -439,6 +439,26 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
             return False
         return True
 
+    def _get_unique_filename(self, base_path):
+        """
+        Generate a unique filename by appending (1), (2), etc. if the file exists.
+        
+        :param base_path: Base file path to check
+        :return: Unique file path that doesn't exist
+        """
+        if not os.path.exists(base_path):
+            return base_path
+            
+        directory, filename = os.path.split(base_path)
+        name, ext = os.path.splitext(filename)
+        
+        counter = 1
+        while True:
+            new_path = os.path.join(directory, f"{name} ({counter}){ext}")
+            if not os.path.exists(new_path):
+                return new_path
+            counter += 1
+
     def _on_download(self):
         if self._downloading:
             self._downloading = False
@@ -496,20 +516,6 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 fullpath = os.path.join(outdir, fname)
                 decrypted_path = fullpath.rsplit(".", 1)[0] if fname.endswith((".enc2", ".enc4")) else None
                 
-                # Check if already decrypted file exists
-                if decrypted_path and os.path.exists(decrypted_path):
-                    if messagebox.askyesno("File Exists", 
-                                          f"Decrypted file already exists. Re-download and decrypt?"):
-                        # Delete both encrypted and decrypted files to start fresh
-                        if os.path.exists(fullpath):
-                            os.remove(fullpath)
-                        os.remove(decrypted_path)
-                    else:
-                        self._log(f"Skipping download - file already exists: {os.path.basename(decrypted_path)}")
-                        self.dl_status_var.set("Skipped - file exists")
-                        self.dl_progress["value"] = 100
-                        return
-                
                 # Always force resume if file exists but is incomplete
                 offset = 0
                 if os.path.exists(fullpath):
@@ -522,6 +528,7 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                         # Resume download from offset
                         offset = file_size
                         resuming = True
+                        self._log(f"Resuming download from {self._format_size(offset)}")
                 else:
                     resuming = False
                     
@@ -578,10 +585,17 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 
                 # Decrypt if needed
                 if not self.nodecrypt_var.get() and fname.endswith((".enc2", ".enc4")):
-                    dec = fullpath.rsplit(".", 1)[0]
+                    # Base decrypted filename
+                    dec_base = fullpath.rsplit(".", 1)[0]
+                    
+                    # CHANGED: Get a unique filename if the decrypted file already exists
+                    dec = self._get_unique_filename(dec_base)
                     
                     try:
                         self._log("Decrypting...")
+                        if dec != dec_base:
+                            self._log(f"Decrypted file already exists, saving as {os.path.basename(dec)}")
+                            
                         self.dl_status_var.set("Decrypting...")
                         self.dl_progress["value"] = 80
                         
