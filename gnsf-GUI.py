@@ -939,15 +939,22 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
             # Needs at least 8 digits
             return imei
             
-        if len(imei) < 15:
-            # Fill remaining digits with random numbers
-            missing = 14 - len(imei)
-            rnd = random.randint(0, 10**missing - 1)
-            imei += f"%0{missing}d" % rnd
+        if len(imei) >= 15:
+            # Already at least 15 digits, return as is
+            return imei[:15]
             
-            # Add checksum digit
-            imei += str(IMEIUtils.luhn_checksum(imei))
+        if len(imei) == 14:
+            # Exactly 14 digits, just add checksum
+            return imei + str(IMEIUtils.luhn_checksum(imei))
             
+        # Less than 14 digits, need to pad with random digits
+        missing = 14 - len(imei)
+        rnd = random.randint(0, 10**missing - 1)
+        imei += f"%0{missing}d" % rnd
+        
+        # Add checksum digit as the 15th digit
+        imei += str(IMEIUtils.luhn_checksum(imei))
+        
         return imei
 
     def _get_unique_filename(self, base_path):
@@ -1028,10 +1035,12 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 return  # User canceled
                 
             filled_imei = self._fixup_imei(imei)
-            self.imei_var.set(filled_imei)
-            # Also update the decrypt tab IMEI
             self.dec_imei_var.set(filled_imei)
-            self._log(f"Filled up IMEI to {filled_imei}")
+            # Also update the main IMEI
+            self.imei_var.set(filled_imei)
+            self._dec_log(f"Filled up IMEI to {filled_imei}")
+            # Important: Update our local variable to use the filled IMEI
+            imei = filled_imei  # This ensures the worker uses the complete IMEI
         
         if missing:
             messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
@@ -1050,8 +1059,14 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         except Exception as e:
             self._log(f"Could not parse firmware version: {ver}")
         
+        # Store the final IMEI in an instance variable to ensure it's accessible in the worker
+        self._current_download_imei = imei
+        
         def worker():
             try:
+                # Use the stored IMEI value
+                current_imei = self._current_download_imei
+                
                 self._log("Initializing client...")
                 self.dl_status_var.set("Initializing client...")
                 self.dl_progress["value"] = 5
@@ -1060,7 +1075,8 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 self._log("Querying binary info...")
                 self.dl_status_var.set("Querying binary info...")
                 self.dl_progress["value"] = 10
-                path, fname, size = getbinaryfile(client, ver, mdl, imei, csc)
+                # Use the current_imei variable instead of the closure-captured imei
+                path, fname, size = getbinaryfile(client, ver, mdl, current_imei, csc)
                 
                 fullpath = os.path.join(outdir, fname)
                 decrypted_path = fullpath.rsplit(".", 1)[0] if fname.endswith((".enc2", ".enc4")) else None
