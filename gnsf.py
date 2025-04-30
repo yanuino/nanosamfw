@@ -19,7 +19,7 @@ from csclist import CSC_DICT
 import concurrent.futures
 import threading
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 class CryptoUtils:
     """

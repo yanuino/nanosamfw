@@ -10,10 +10,9 @@ import re
 import queue
 import platform
 from concurrent.futures import ThreadPoolExecutor
-
 from gnsf import (CSC_DICT, getlatestver, FUSClient, getbinaryfile, 
-                 initdownload, decrypt_file, VERSION, FirmwareUtils, 
-                 normalizevercode)
+                 initdownload, VERSION, FirmwareUtils, 
+                 AES, getv2key, getv4key, CryptoUtils)
 
 class GNSFGUI(tk.Tk):
     def __init__(self):
@@ -384,6 +383,106 @@ class GNSFGUI(tk.Tk):
         self.dec_log.see(tk.END)
         self.dec_log.configure(state="disabled")
 
+    def decrypt_progress_GUI(self, inf, outf, key, length, callback=None):
+        """
+        Decrypt an encrypted firmware stream with GUI progress reporting.
+        
+        :param inf: file-like input with read method
+        :param outf: file-like output with write method
+        :param key: AES key (16 bytes)
+        :param length: total input size in bytes
+        :param callback: function(percent, bytes_processed, speed) -> bool
+                        Returns False to cancel operation
+        :raises ValueError: if length not multiple of 16
+        """
+        if length % 16 != 0:
+            raise ValueError("Invalid input block size (not multiple of 16)")
+            
+        # Create AES cipher in ECB mode
+        cipher = AES.new(key, AES.MODE_ECB)
+        
+        # Variables for progress tracking
+        chunk_size = 4096
+        chunks = length // chunk_size + 1
+        bytes_processed = 0
+        start_time = time.time()
+        last_update = start_time
+        update_interval = 0.1  # Update 10 times per second
+        
+        # Process each chunk
+        for i in range(chunks):
+            block = inf.read(chunk_size)
+            if not block:
+                break
+                
+            # Decrypt block
+            decblock = cipher.decrypt(block)
+            
+            # Handle padding in last block
+            if i == chunks - 1:
+                outf.write(CryptoUtils.pkcs_unpad(decblock))
+            else:
+                outf.write(decblock)
+            
+            # Update progress tracking
+            bytes_processed += len(block)
+            current_time = time.time()
+            elapsed = current_time - start_time
+            speed = bytes_processed / elapsed if elapsed > 0 else 0
+            percent = (bytes_processed / length) * 100
+            
+            # Call the progress callback if provided
+            if callback and (current_time - last_update >= update_interval):
+                if not callback(percent, bytes_processed, speed):
+                    # Operation cancelled
+                    return False
+                last_update = current_time
+        
+        # Successful completion
+        return True
+
+    def decrypt_file_GUI(self, version, fw_ver, model, region, imei, encrypted, decrypted, progress_callback=None):
+        """
+        High-level helper to decrypt a .enc2/.enc4 file with GUI progress.
+        
+        :param version: encryption version (2 or 4)
+        :param fw_ver: firmware version string
+        :param model: device model
+        :param region: CSC region
+        :param imei: device IMEI
+        :param encrypted: path to .enc2/.enc4 file
+        :param decrypted: path for output decrypted file
+        :param progress_callback: function(percent, bytes_processed, speed) -> bool
+        :return: 0 on success, 1 on failure
+        """
+        if version not in (2, 4):
+            raise ValueError(f"Unknown encryption version: {version}")
+        
+        # Use the appropriate key generation function
+        getkey = getv2key if version == 2 else getv4key
+        
+        # Get decryption key
+        try:
+            key = getkey(fw_ver, model, region, imei)
+            if not key:
+                self._dec_log(f"Failed to get decryption key for {fw_ver}")
+                return 1
+        except Exception as e:
+            self._dec_log(f"Error getting decryption key: {e}")
+            return 1
+        
+        # Get file size
+        length = os.path.getsize(encrypted)
+        
+        # Start decryption
+        try:
+            with open(encrypted, "rb") as inf, open(decrypted, "wb") as outf:
+                success = self.decrypt_progress_GUI(inf, outf, key, length, progress_callback)
+                return 0 if success else 1
+        except Exception as e:
+            self._dec_log(f"Decryption error: {e}")
+            return 1
+
     def _on_manual_decrypt(self):
         """Handle the manual decrypt button click"""
         # Check if we're already decrypting
@@ -399,7 +498,7 @@ class GNSFGUI(tk.Tk):
         firmware = self.dec_ver_var.get().strip()
         model = self.model_var.get().strip()
         csc = self.csc_var.get().strip().upper()
-        imei = self.dec_imei_var.get().strip()  # Use dedicated IMEI field
+        imei = self.dec_imei_var.get().strip()
         enc_type = self.enc_type_var.get()
         
         missing = []
@@ -410,8 +509,31 @@ class GNSFGUI(tk.Tk):
         
         # For ENC4, we need CSC and IMEI too
         if enc_type == 4:
-            if not csc: missing.append("CSC")
-            if not self._validate_imei(imei): missing.append("IMEI")
+            if not csc: 
+                missing.append("CSC")
+            
+            # Enhanced IMEI validation with auto-fill
+            if not imei or not imei.isdecimal() or len(imei) < 8:
+                if not missing:  # Only show this error if there aren't other missing fields
+                    messagebox.showerror("Error", "IMEI must contain at least 8 digits")
+                    return
+                missing.append("IMEI")
+            else:
+                # Auto-fill IMEI if needed
+                if len(imei) < 15:
+                    # Show warning and ask for confirmation
+                    if not self._show_imei_warning(imei):
+                        return  # User canceled
+                        
+                    filled_imei = self._fixup_imei(imei)
+                    self.dec_imei_var.set(filled_imei)
+                    # Also update the main IMEI
+                    self.imei_var.set(filled_imei)
+                    self._dec_log(f"Filled up IMEI to {filled_imei}")
+        
+        if missing:
+            messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
+            return
         
         # Check if input file exists
         if not os.path.exists(enc_file):
@@ -449,37 +571,58 @@ class GNSFGUI(tk.Tk):
                 self.dec_status_var.set("Getting decryption key...")
                 self.dec_progress["value"] = 10
                 
-                # Create args for decrypt_file function
-                args = type("A", (), {})()
-                args.dev_model = model
-                args.dev_region = csc
-                args.dev_imei = imei
-                args.fw_ver = firmware
+                # Get file size for progress reporting
+                file_size = os.path.getsize(enc_file)
+                decrypt_start_time = time.time()
                 
-                # Check that source file exists and has content
-                if not os.path.exists(enc_file) or os.path.getsize(enc_file) == 0:
-                    raise Exception(f"Source file {os.path.basename(enc_file)} is missing or empty")
-                
-                # Start decryption
-                self.dec_status_var.set("Decrypting...")
-                self.dec_progress["value"] = 20
-                
-                # Create progress monitor
-                def progress_callback(percent):
+                def progress_callback(percent, bytes_processed, speed):
                     if not self._decrypting:
                         return False  # Cancel
-                    self.dec_progress["value"] = 20 + (percent * 0.7)  # Scale to 20-90%
+                    
+                    # Calculate progress (scale to 20-90%)
+                    progress_value = 20 + (percent * 0.7)
+                    
+                    # Format speed for display
+                    speed_str = self._format_size(speed) + "/s"
+                    
+                    # Estimate time remaining
+                    if speed > 0:
+                        bytes_remaining = file_size - bytes_processed
+                        eta = bytes_remaining / speed
+                        eta_str = f" • ETA: {self._format_time(eta)}"
+                    else:
+                        eta_str = ""
+                    
+                    # Create status message
+                    status = f"Decrypting: {self._format_size(bytes_processed)}/{self._format_size(file_size)} • {speed_str}{eta_str}"
+                    
+                    # Update UI
+                    self.dec_status_var.set(status)
+                    self.dec_progress["value"] = progress_value
+                    
+                    # Process UI events to keep it responsive
+                    self.update_idletasks()
+                    
                     return True  # Continue
                 
-                # Call decrypt_file with our wrapper
-                result = decrypt_file(args, enc_type, enc_file, dec_file)
+                # Call our GUI decrypt function
+                result = self.decrypt_file_GUI(
+                    enc_type, firmware, model, csc, imei, 
+                    enc_file, dec_file, progress_callback
+                )
                 
                 if result == 0:
+                    # Calculate and show final statistics
+                    duration = time.time() - decrypt_start_time
+                    avg_speed = file_size / duration if duration > 0 else 0
+                    
                     self._dec_log(f"Successfully decrypted to: {dec_file}")
-                    self.dec_status_var.set("Decryption completed")
+                    self._dec_log(f"Decryption completed in {self._format_time(duration)} at {self._format_size(avg_speed)}/s")
+                    
+                    self.dec_status_var.set(f"Completed ({self._format_size(avg_speed)}/s)")
                     self.dec_progress["value"] = 100
                 else:
-                    raise Exception("Decryption failed with unknown error")
+                    raise Exception("Decryption failed - check key parameters")
                 
             except Exception as e:
                 self._dec_log(f"Decryption error: {e}")
@@ -771,10 +914,41 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
             return f"{seconds/3600:.1f} hrs"
 
     def _validate_imei(self, imei):
-        """Validate IMEI has at least 8 digits"""
+        """
+        Basic validation for IMEI - must be at least 8 digits.
+        Full validation and checksum generation happens during auto-fill.
+        
+        :param imei: IMEI string to validate
+        :return: True if valid (at least 8 digits), False otherwise
+        """
         if not imei or not re.match(r'^\d{8,15}$', imei):
             return False
         return True
+
+    def _fixup_imei(self, imei):
+        """
+        Auto-fill IMEI to 15 digits with random numbers and add checksum.
+        
+        :param imei: Partial IMEI (at least 8 digits)
+        :return: Complete 15-digit IMEI with valid checksum
+        """
+        import random
+        from gnsf import IMEIUtils
+        
+        if not imei or not imei.isdecimal() or len(imei) < 8:
+            # Needs at least 8 digits
+            return imei
+            
+        if len(imei) < 15:
+            # Fill remaining digits with random numbers
+            missing = 14 - len(imei)
+            rnd = random.randint(0, 10**missing - 1)
+            imei += f"%0{missing}d" % rnd
+            
+            # Add checksum digit
+            imei += str(IMEIUtils.luhn_checksum(imei))
+            
+        return imei
 
     def _get_unique_filename(self, base_path):
         """
@@ -842,10 +1016,22 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         if not csc: missing.append("CSC")
         if not ver: missing.append("Firmware Version")
         
-        # Enhanced IMEI validation
-        if not self._validate_imei(imei):
+        # Enhanced IMEI validation with auto-fill
+        if not imei or not imei.isdecimal() or len(imei) < 8:
             messagebox.showerror("Error", "IMEI must contain at least 8 digits")
             return
+            
+        # Auto-fill IMEI if needed
+        if len(imei) < 15:
+            # Show warning and ask for confirmation
+            if not self._show_imei_warning(imei):
+                return  # User canceled
+                
+            filled_imei = self._fixup_imei(imei)
+            self.imei_var.set(filled_imei)
+            # Also update the decrypt tab IMEI
+            self.dec_imei_var.set(filled_imei)
+            self._log(f"Filled up IMEI to {filled_imei}")
         
         if missing:
             messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
@@ -951,12 +1137,12 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                     
                     self._log("Download complete")
                 
-                # Decrypt if needed
+                # auto‑decrypt
                 if not self.nodecrypt_var.get() and fname.endswith((".enc2", ".enc4")):
                     # Base decrypted filename
                     dec_base = fullpath.rsplit(".", 1)[0]
                     
-                    # CHANGED: Get a unique filename if the decrypted file already exists
+                    # Get a unique filename if the decrypted file already exists
                     dec = self._get_unique_filename(dec_base)
                     
                     try:
@@ -964,11 +1150,8 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                         if dec != dec_base:
                             self._log(f"Decrypted file already exists, saving as {os.path.basename(dec)}")
                             
-                        self.dl_status_var.set("Decrypting...")
+                        self.dl_status_var.set("Preparing to decrypt...")
                         self.dl_progress["value"] = 80
-                        
-                        args = type("A", (), {})()
-                        args.dev_model, args.dev_region, args.dev_imei, args.fw_ver = mdl, csc, imei, ver
                         
                         # Check that both the source file exists and has content
                         if not os.path.exists(fullpath) or os.path.getsize(fullpath) == 0:
@@ -977,15 +1160,49 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                         # Ensure the output directory exists
                         os.makedirs(os.path.dirname(dec), exist_ok=True)
                         
-                        decrypt_file(args, 2 if fname.endswith(".enc2") else 4, fullpath, dec)
+                        # Create decrypt progress callback
+                        decrypt_start_time = time.time()
+                        file_size = os.path.getsize(fullpath)
+                        enc_ver = 2 if fname.endswith(".enc2") else 4
                         
-                        if os.path.exists(dec) and os.path.getsize(dec) > 0:
+                        def dl_decrypt_progress_callback(percent, bytes_processed, speed):
+                            if not self._downloading:
+                                return False  # Cancel
+
+                            # Calculate progress (scale to 80-95%)
+                            progress_value = 80 + (percent * 0.15)
+                            
+                            # Format speed for display
+                            speed_str = self._format_size(speed) + "/s"
+                            
+                            # Create status message
+                            status = f"Decrypting: {self._format_size(bytes_processed)}/{self._format_size(file_size)} • {speed_str}"
+                            
+                            # Update UI
+                            self.dl_status_var.set(status)
+                            self.dl_progress["value"] = progress_value
+                            
+                            # Process UI events to keep it responsive
+                            self.update_idletasks()
+                            
+                            return True  # Continue
+                        
+                        # Call our GUI decrypt function
+                        result = self.decrypt_file_GUI(
+                            enc_ver, ver, mdl, csc, imei, 
+                            fullpath, dec, dl_decrypt_progress_callback
+                        )
+                        
+                        if result == 0 and os.path.exists(dec) and os.path.getsize(dec) > 0:
                             self._log(f"Decrypted to {dec}")
-                            self.dl_status_var.set(f"Decrypted to {os.path.basename(dec)}")
+                            # Include final statistics
+                            decryption_time = time.time() - decrypt_start_time
+                            avg_speed = file_size / decryption_time if decryption_time > 0 else 0
+                            self.dl_status_var.set(f"Decrypted ({self._format_size(avg_speed)}/s)")
                             self.dl_progress["value"] = 95
                             os.remove(fullpath)
                         else:
-                            raise Exception("Decryption produced empty or missing file")
+                            raise Exception("Decryption failed or produced empty file")
                             
                     except Exception as e:
                         self._log(f"Decryption error: {e}")
@@ -1037,6 +1254,23 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
             
         finally:
             self.fw_info_text.configure(state="disabled")
+
+    def _show_imei_warning(self, partial_imei):
+        """
+        Show a warning when user enters a partial IMEI that will be auto-generated
+        
+        :param partial_imei: The partial IMEI entered by user
+        :return: True if user wants to continue with auto-generation, False to cancel
+        """
+        message = (
+            f"You've entered an incomplete IMEI ({partial_imei}).\n\n"
+            "The missing part of the IMEI will be automatically generated, "
+            "but this doesn't guarantee the correctness of the IMEI for firmware download "
+            "and may cause issues.\n\n"
+            "It's recommended to specify the complete 15-digit IMEI of your device.\n\n"
+            "Continue with the automatically generated IMEI?"
+        )
+        return messagebox.askyesno("IMEI Warning", message)
 
 if __name__ == "__main__":
     app = GNSFGUI()
