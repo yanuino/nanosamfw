@@ -25,7 +25,30 @@ class GNSFGUI(tk.Tk):
         self._check_thread = None
         self._download_thread = None
         self._download_start_time = 0
+        
+        # Set application icon
+        self._set_app_icon()
+        
         self._create_widgets()
+    
+    def _set_app_icon(self):
+        """Set the application icon for window title bar and taskbar"""
+        try:
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                                    "AppIcons", "128.png")
+            if os.path.exists(icon_path):
+                self.iconphoto(True, tk.PhotoImage(file=icon_path))
+
+            if not os.path.exists(icon_path):
+                for alt_size in ["256", "512"]:
+                    alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                                          "AppIcons", f"{alt_size}.png")
+                    if os.path.exists(alt_path):
+                        self.iconphoto(True, tk.PhotoImage(file=alt_path))
+                        break
+                        
+        except Exception as e:
+            print(f"Error setting application icon: {e}")
 
     def _create_widgets(self):
         # Top frame for common inputs (above tabs)
@@ -640,7 +663,7 @@ class GNSFGUI(tk.Tk):
         # Info frame with padding
         info_frame = ttk.Frame(self.info_tab, padding=15)
         info_frame.pack(fill=tk.BOTH, expand=True)
-        
+
         # Title
         title_frame = ttk.Frame(info_frame)
         title_frame.pack(fill=tk.X, pady=(0, 15))
