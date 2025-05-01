@@ -1,5 +1,7 @@
 # GNSF – Get New Samsung Firmware
 
+![GNSF Logo](AppIcons/128.png)
+
 Hey there! 👋  
 Ever needed to grab the latest Samsung firmware for **Odin** and decrypt it without jumping through hoops? That’s exactly why I built **GNSF**. It’s a simple CLI tool that helps you:
 
@@ -10,6 +12,12 @@ Ever needed to grab the latest Samsung firmware for **Odin** and decrypt it with
 All in one go.
 
 Project URL: https://github.com/keklick1337/gnsf
+
+## Ready-to-use Applications
+
+| Platform | GUI Version | CLI Version |
+|----------|-------------|-------------|
+| Windows x64 | [![Windows - GUI version](https://img.shields.io/static/v1?label=Windows&message=GUI+version&color=2ea44f)](https://github.com/keklick1337/gnsf/releases/latest/download/windows_x64_gnsf-GUI.exe) | [![Windows - CLI version](https://img.shields.io/static/v1?label=Windows&message=CLI+version&color=blue)](https://github.com/keklick1337/gnsf/releases/latest/download/windows_x64_gnsf.exe) |
 
 ---
 
