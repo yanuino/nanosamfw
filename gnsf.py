@@ -19,7 +19,7 @@ from csclist import CSC_DICT
 import concurrent.futures
 import threading
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 
 class CryptoUtils:
     """
@@ -128,8 +128,18 @@ class CryptoUtils:
 
 class IMEIUtils:
     """
-    Helpers to require, validate and auto‑fill IMEI values.
+    Helpers to require, validate and auto‑fill IMEI values or Serial Numbers.
     """
+
+    @staticmethod
+    def device_id_required(args: argparse.Namespace) -> bool:
+        """
+        Determine if device ID (IMEI or Serial Number) is mandatory for the given command.
+
+        :param args: parsed CLI args
+        :return: True if download or decrypt(enc_ver=4)
+        """
+        return args.command == "download" or (args.command == "decrypt" and args.enc_ver == 4)
 
     @staticmethod
     def imei_required(args: argparse.Namespace) -> bool:
@@ -162,6 +172,65 @@ class IMEIUtils:
         return (10 - (s % 10)) % 10
 
     @staticmethod
+    def validate_serial_number(serial: str) -> bool:
+        """
+        Validate serial number format (1-35 characters, letters and digits only).
+
+        :param serial: serial number string to validate
+        :return: True if valid, False otherwise
+        """
+        if not serial:
+            return False
+        if not 1 <= len(serial) <= 35:
+            return False
+        return serial.isalnum()
+
+    @staticmethod
+    def get_device_id(args: argparse.Namespace) -> str:
+        """
+        Get the device ID (IMEI or Serial Number) from args.
+
+        :param args: parsed CLI args
+        :return: device ID string (IMEI or Serial Number)
+        """
+        if hasattr(args, 'dev_serial') and args.dev_serial:
+            return args.dev_serial
+        elif hasattr(args, 'dev_imei') and args.dev_imei:
+            return args.dev_imei
+        return ""
+
+    @staticmethod
+    def fixup_device_id(args: argparse.Namespace) -> int:
+        """
+        Validate or auto‐fill the device ID (IMEI or Serial Number).
+
+        :param args: parsed CLI args (must have dev_imei or dev_serial)
+        :return: 0 on success, 1 on failure (and prints message)
+        """
+        if not IMEIUtils.device_id_required(args):
+            return 0
+
+        # Check if we have either IMEI or Serial Number
+        device_id = IMEIUtils.get_device_id(args)
+        
+        if not device_id:
+            print("Need either IMEI (use -i) or Serial Number (use -s)")
+            return 1
+
+        # If using serial number, validate it
+        if hasattr(args, 'dev_serial') and args.dev_serial:
+            if not IMEIUtils.validate_serial_number(args.dev_serial):
+                print("Serial Number must be 1-35 characters (letters and digits only)")
+                return 1
+            return 0
+
+        # If using IMEI, validate and auto-fill if needed
+        if hasattr(args, 'dev_imei') and args.dev_imei:
+            return IMEIUtils.fixup_imei(args)
+        
+        return 1
+
+    @staticmethod
     def fixup_imei(args: argparse.Namespace) -> int:
         """
         Validate or auto‐fill the IMEI to 15 digits.
@@ -169,12 +238,12 @@ class IMEIUtils:
         :param args: parsed CLI args (must have dev_imei)
         :return: 0 on success, 1 on failure (and prints message)
         """
-        if not IMEIUtils.imei_required(args):
+        if not args.dev_imei:
             return 0
-        if not args.dev_imei or not args.dev_imei.isdecimal() or len(args.dev_imei) < 8:
+        if not args.dev_imei.isdecimal() or len(args.dev_imei) < 8:
             print("Need at least 8 digits for IMEI; use -i")
             return 1
-        if len(args.dev_imei) < 15:
+        if len(args.dev_imei) < 15 and args.dev_imei.isdecimal():
             missing = 14 - len(args.dev_imei)
             rnd = random.randint(0, 10**missing - 1)
             args.dev_imei += f"%0{missing}d" % rnd
@@ -214,14 +283,14 @@ class FUSMessageBuilder:
             d.text = str(val)
 
     @staticmethod
-    def binaryinform(fwv: str, model: str, region: str, imei: str, nonce: str) -> bytes:
+    def binaryinform(fwv: str, model: str, region: str, device_id: str, nonce: str) -> bytes:
         """
         Build a BinaryInform request payload.
 
         :param fwv: firmware version code
         :param model: device model
         :param region: CSC region code
-        :param imei: device IMEI
+        :param device_id: device IMEI or Serial Number
         :param nonce: current FUS nonce
         :return: raw XML bytes
         """
@@ -232,7 +301,7 @@ class FUSMessageBuilder:
             "BINARY_NATURE": 1,
             "CLIENT_PRODUCT": "Smart Switch",
             "CLIENT_VERSION": "4.3.23123_1",
-            "DEVICE_IMEI_PUSH": imei,
+            "DEVICE_IMEI_PUSH": device_id,
             "DEVICE_FW_VERSION": fwv,
             "DEVICE_LOCAL_CODE": region,
             "DEVICE_MODEL_NAME": model,
@@ -400,45 +469,45 @@ class FirmwareUtils:
             return f"Could not parse firmware string: {firmware}"
 
 
-def getv4key(version: str, model: str, region: str, imei: str) -> Optional[bytes]:
+def getv4key(version: str, model: str, region: str, device_id: str) -> Optional[bytes]:
     """
     Retrieve the MD5‐derived AES key for V4 encryption by querying FUS.
 
     :param version: firmware version code
     :param model: device model
     :param region: CSC region
-    :param imei: device IMEI
+    :param device_id: device IMEI or Serial Number
     :return: 16‐byte AES key or None on failure
     """
-    if not imei:
-        raise ValueError("IMEI is required for V4 key retrieval. Use -i")
+    if not device_id:
+        raise ValueError("Device ID (IMEI or Serial Number) is required for V4 key retrieval. Use -i or -s")
     
     if not region:
         raise ValueError("Region is required for V4 key retrieval. Use -r")
 
     client = FUSClient()
     version_norm = normalizevercode(version)
-    req = FUSMessageBuilder.binaryinform(version_norm, model, region, imei, client.nonce)
+    req = FUSMessageBuilder.binaryinform(version_norm, model, region, device_id, client.nonce)
     resp = client.makereq("NF_DownloadBinaryInform.do", req)
     try:
         root = ET.fromstring(resp)
         fwver = root.find("./FUSBody/Results/LATEST_FW_VERSION/Data").text  # type: ignore
         logicval = root.find("./FUSBody/Put/LOGIC_VALUE_FACTORY/Data").text  # type: ignore
     except AttributeError:
-        print("Could not get decryption key from servers - bad model/region/imei?")
+        print("Could not get decryption key from servers - bad model/region/device_id?")
         return None
     deckey = CryptoUtils.getlogiccheck(fwver, logicval)
     return hashlib.md5(deckey.encode()).digest()
 
 
-def getv2key(version: str, model: str, region: str, _imei: str) -> bytes:
+def getv2key(version: str, model: str, region: str, _device_id: str) -> bytes:
     """
     Compute legacy V2 AES key (no server call).
 
     :param version: firmware version code
     :param model: device model
     :param region: CSC region
-    :param _imei: ignored
+    :param _device_id: ignored (device ID not needed for V2)
     :return: 16‐byte AES key (MD5 of "region:model:version")
     """
     if not region:
@@ -546,7 +615,7 @@ def decrypt_file(
     """
     High‐level helper to decrypt a .enc2/.enc4 file using the correct key.
 
-    :param args: CLI args (to supply model, region, imei, version)
+    :param args: CLI args (to supply model, region, device_id, version)
     :param version: encryption version (2 or 4)
     :param encrypted: path to .enc2/.enc4 file
     :param decrypted: path for output decrypted file
@@ -555,7 +624,8 @@ def decrypt_file(
     if version not in (2, 4):
         raise ValueError(f"Unknown encryption version: {version}")
     getkey = getv2key if version == 2 else getv4key
-    key = getkey(args.fw_ver, args.dev_model, args.dev_region, args.dev_imei)
+    device_id = IMEIUtils.get_device_id(args)
+    key = getkey(args.fw_ver, args.dev_model, args.dev_region, device_id)
     if not key:
         return 1
     length = os.stat(encrypted).st_size
@@ -575,7 +645,7 @@ def initdownload(client: FUSClient, filename: str) -> None:
     resp = client.makereq("NF_DownloadBinaryInitForMass.do", req)
 
 def getbinaryfile(
-    client: FUSClient, fw: str, model: str, imei: str, region: str
+    client: FUSClient, fw: str, model: str, device_id: str, region: str
 ) -> Tuple[str, str, int]:
     """
     Request info on the firmware bundle (path, filename, size).
@@ -583,11 +653,11 @@ def getbinaryfile(
     :param client: FUSClient with valid nonce
     :param fw: normalized firmware version
     :param model: device model
-    :param imei: device IMEI
+    :param device_id: device IMEI or Serial Number
     :param region: CSC region
     :return: (server path, filename, size in bytes)
     """
-    req = FUSMessageBuilder.binaryinform(fw, model, region, imei, client.nonce)
+    req = FUSMessageBuilder.binaryinform(fw, model, region, device_id, client.nonce)
     resp = client.makereq("NF_DownloadBinaryInform.do", req)
     root = ET.fromstring(resp)
     status = int(root.find("./FUSBody/Results/Status").text)  # type: ignore
@@ -624,6 +694,11 @@ class GNSFApp:
             "--dev-imei",
             help="device IMEI (will be auto‑filled if you give ≥8 digits)",
         )
+        p.add_argument(
+            "-s",
+            "--dev-serial",
+            help="device Serial Number (1-35 characters, letters and digits)",
+        )
         p.add_argument("--version", action="version", version=f"GNSF {VERSION}")
 
         subs = p.add_subparsers(dest="command", required=True)
@@ -658,8 +733,8 @@ class GNSFApp:
         """
         args = self.parser.parse_args()
 
-        # IMEI validation/fill
-        if IMEIUtils.fixup_imei(args):
+        # Device ID validation/fill (IMEI or Serial Number)
+        if IMEIUtils.fixup_device_id(args):
             return 1
 
         # check
@@ -713,8 +788,9 @@ class GNSFApp:
                 print(f"Note: Could not parse firmware version format: {e}")
 
             client = FUSClient()
+            device_id = IMEIUtils.get_device_id(args)
             path, fname, size = getbinaryfile(
-                client, args.fw_ver, args.dev_model, args.dev_imei, args.dev_region
+                client, args.fw_ver, args.dev_model, device_id, args.dev_region
             )
             os.makedirs(args.out_dir, exist_ok=True)
             if not os.path.isdir(args.out_dir):

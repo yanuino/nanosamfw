@@ -12,7 +12,7 @@ import platform
 from concurrent.futures import ThreadPoolExecutor
 from gnsf import (CSC_DICT, getlatestver, FUSClient, getbinaryfile, 
                  initdownload, VERSION, FirmwareUtils, 
-                 AES, getv2key, getv4key, CryptoUtils)
+                 AES, getv2key, getv4key, CryptoUtils, IMEIUtils)
 
 class GNSFGUI(tk.Tk):
     def __init__(self):
@@ -111,30 +111,35 @@ class GNSFGUI(tk.Tk):
                                    command=lambda: self.notebook.select(self.check_tab))
         self.help_btn.grid(row=0, column=2, padx=5)
 
-        ttk.Label(frm2, text="IMEI (≥8 digits):*").grid(row=0, column=3, sticky=tk.W, padx=(10,0))
+        ttk.Label(frm2, text="IMEI (≥8 digits):").grid(row=0, column=3, sticky=tk.W, padx=(10,0))
         self.imei_var = tk.StringVar()
         self.imei_entry = ttk.Entry(frm2, textvariable=self.imei_var, width=20)
         self.imei_entry.grid(row=0, column=4)
 
-        ttk.Label(frm2, text="Out Dir:").grid(row=1, column=0, sticky=tk.W, pady=(5,0))
+        ttk.Label(frm2, text="Serial Number:").grid(row=1, column=3, sticky=tk.W, padx=(10,0))
+        self.serial_var = tk.StringVar()
+        self.serial_entry = ttk.Entry(frm2, textvariable=self.serial_var, width=20)
+        self.serial_entry.grid(row=1, column=4)
+
+        ttk.Label(frm2, text="Out Dir:").grid(row=2, column=0, sticky=tk.W, pady=(5,0))
         
         # Get platform-specific default download directory
         default_downloads = self._get_default_downloads_dir()
         self.outdir_var = tk.StringVar(value=default_downloads)
         self.outdir_entry = ttk.Entry(frm2, textvariable=self.outdir_var, width=40)
-        self.outdir_entry.grid(row=1, column=1, columnspan=3, sticky=tk.W+tk.E)
+        self.outdir_entry.grid(row=2, column=1, columnspan=3, sticky=tk.W+tk.E)
         
         self.browse_btn = ttk.Button(frm2, text="Browse", command=self._browse_out)
-        self.browse_btn.grid(row=1, column=4, sticky=tk.W)
+        self.browse_btn.grid(row=2, column=4, sticky=tk.W)
 
         self.nodecrypt_var = tk.BooleanVar(value=False)
         self.decrypt_check = ttk.Checkbutton(frm2, text="Skip Decrypt", variable=self.nodecrypt_var)
-        self.decrypt_check.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(5,0))
+        self.decrypt_check.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(5,0))
         
-        ttk.Label(frm2, text="* Required fields").grid(row=2, column=1, columnspan=2, sticky=tk.E, pady=(5,0))
+        ttk.Label(frm2, text="* Required: Model, CSC, Version, and either IMEI or Serial Number").grid(row=3, column=1, columnspan=3, sticky=tk.E, pady=(5,0))
 
         self.download_btn = ttk.Button(frm2, text="Download & Decrypt", command=self._on_download)
-        self.download_btn.grid(row=2, column=4, sticky=tk.E, pady=(5,0))
+        self.download_btn.grid(row=3, column=4, sticky=tk.E, pady=(5,0))
         
         # Firmware info frame
         self.fw_info_frame = ttk.LabelFrame(self.download_tab, text="Firmware Information")
@@ -209,7 +214,7 @@ class GNSFGUI(tk.Tk):
         # Scrollbars for treeview
         vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscroll=vsb.set, xscroll=hsb.set)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
         # Grid layout for table and scrollbars
         self.tree.grid(row=0, column=0, sticky=tk.NSEW)
@@ -283,30 +288,39 @@ class GNSFGUI(tk.Tk):
         self.dec_ver_entry = ttk.Entry(decrypt_frame, textvariable=self.dec_ver_var, width=30)
         self.dec_ver_entry.grid(row=3, column=1, sticky=tk.W, pady=5)
 
-        # Add IMEI field (new)
-        ttk.Label(decrypt_frame, text="IMEI (for ENC4):*").grid(row=4, column=0, sticky=tk.W)
+        # Add IMEI field
+        ttk.Label(decrypt_frame, text="IMEI (for ENC4):").grid(row=4, column=0, sticky=tk.W)
         self.dec_imei_var = tk.StringVar()
         # Link it to the main IMEI field for convenience
         self.dec_imei_var.set(self.imei_var.get())
         self.dec_imei_entry = ttk.Entry(decrypt_frame, textvariable=self.dec_imei_var, width=20)
         self.dec_imei_entry.grid(row=4, column=1, sticky=tk.W, pady=5)
-        # Add a help text for better UX
-        ttk.Label(decrypt_frame, text="(Required for ENC4 files)").grid(
-            row=4, column=2, sticky=tk.W, padx=(5, 0), pady=5
+        
+        # Add Serial Number field  
+        ttk.Label(decrypt_frame, text="Serial Number (for ENC4):").grid(row=5, column=0, sticky=tk.W)
+        self.dec_serial_var = tk.StringVar()
+        # Link it to the main Serial Number field for convenience
+        self.dec_serial_var.set(self.serial_var.get())
+        self.dec_serial_entry = ttk.Entry(decrypt_frame, textvariable=self.dec_serial_var, width=20)
+        self.dec_serial_entry.grid(row=5, column=1, sticky=tk.W, pady=5)
+        
+        # Add help text for better UX
+        ttk.Label(decrypt_frame, text="(Either IMEI or Serial Number required for ENC4)").grid(
+            row=5, column=2, sticky=tk.W, padx=(5, 0), pady=5
         )
         
         # Note about required fields
         ttk.Label(decrypt_frame, text="* Required fields").grid(
-            row=5, column=1, columnspan=2, sticky=tk.E, pady=(10, 0)
+            row=6, column=1, columnspan=2, sticky=tk.E, pady=(10, 0)
         )
         
         # Decrypt button
         self.decrypt_btn = ttk.Button(decrypt_frame, text="Decrypt File", command=self._on_manual_decrypt)
-        self.decrypt_btn.grid(row=5, column=0, sticky=tk.W, pady=(10, 0))
+        self.decrypt_btn.grid(row=6, column=0, sticky=tk.W, pady=(10, 0))
         
         # Progress bar
         self.dec_progress_frame = ttk.Frame(decrypt_frame)
-        self.dec_progress_frame.grid(row=6, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.dec_progress_frame.grid(row=7, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
         
         self.dec_status_var = tk.StringVar(value="Ready")
         ttk.Label(self.dec_progress_frame, textvariable=self.dec_status_var).pack(side=tk.LEFT)
@@ -321,8 +335,8 @@ class GNSFGUI(tk.Tk):
         
         # Log area
         self.dec_log_frame = ttk.LabelFrame(decrypt_frame, text="Decrypt Log")
-        self.dec_log_frame.grid(row=7, column=0, columnspan=3, sticky=tk.NSEW, pady=(10, 0))
-        decrypt_frame.rowconfigure(7, weight=1)
+        self.dec_log_frame.grid(row=8, column=0, columnspan=3, sticky=tk.NSEW, pady=(10, 0))
+        decrypt_frame.rowconfigure(8, weight=1)
         
         self.dec_log = scrolledtext.ScrolledText(self.dec_log_frame, height=10, state="disabled")
         self.dec_log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -335,6 +349,9 @@ class GNSFGUI(tk.Tk):
         
         # Link main IMEI and decrypt IMEI fields to keep them in sync
         self.imei_var.trace_add("write", lambda *args: self.dec_imei_var.set(self.imei_var.get()))
+        
+        # Link main Serial Number and decrypt Serial Number fields to keep them in sync
+        self.serial_var.trace_add("write", lambda *args: self.dec_serial_var.set(self.serial_var.get()))
 
     def _update_enc_type_state(self):
         """Enable/disable encryption type radio buttons based on autodetect setting"""
@@ -464,7 +481,7 @@ class GNSFGUI(tk.Tk):
         # Successful completion
         return True
 
-    def decrypt_file_GUI(self, version, fw_ver, model, region, imei, encrypted, decrypted, progress_callback=None):
+    def decrypt_file_GUI(self, version, fw_ver, model, region, device_id, encrypted, decrypted, progress_callback=None):
         """
         High-level helper to decrypt a .enc2/.enc4 file with GUI progress.
         
@@ -472,7 +489,7 @@ class GNSFGUI(tk.Tk):
         :param fw_ver: firmware version string
         :param model: device model
         :param region: CSC region
-        :param imei: device IMEI
+        :param device_id: device ID (IMEI or Serial Number)
         :param encrypted: path to .enc2/.enc4 file
         :param decrypted: path for output decrypted file
         :param progress_callback: function(percent, bytes_processed, speed) -> bool
@@ -486,7 +503,7 @@ class GNSFGUI(tk.Tk):
         
         # Get decryption key
         try:
-            key = getkey(fw_ver, model, region, imei)
+            key = getkey(fw_ver, model, region, device_id)
             if not key:
                 self._dec_log(f"Failed to get decryption key for {fw_ver}")
                 return 1
@@ -522,6 +539,7 @@ class GNSFGUI(tk.Tk):
         model = self.model_var.get().strip()
         csc = self.csc_var.get().strip().upper()
         imei = self.dec_imei_var.get().strip()
+        serial = self.dec_serial_var.get().strip()
         enc_type = self.enc_type_var.get()
         
         missing = []
@@ -530,19 +548,35 @@ class GNSFGUI(tk.Tk):
         if not firmware: missing.append("Firmware Version")
         if not model: missing.append("Model")
         
-        # For ENC4, we need CSC and IMEI too
+        # For ENC4, we need CSC and either IMEI or Serial Number
         if enc_type == 4:
             if not csc: 
                 missing.append("CSC")
             
-            # Enhanced IMEI validation with auto-fill
-            if not imei or not imei.isdecimal() or len(imei) < 8:
+            # Check if we have either IMEI or Serial Number
+            has_imei = imei and imei.isdecimal() and len(imei) >= 8
+            has_serial = serial and IMEIUtils.validate_serial_number(serial)
+            
+            if not has_imei and not has_serial:
                 if not missing:  # Only show this error if there aren't other missing fields
-                    messagebox.showerror("Error", "IMEI must contain at least 8 digits")
+                    messagebox.showerror("Error", "Either IMEI (≥8 digits) or Serial Number (1-35 alphanumeric) is required for ENC4")
                     return
-                missing.append("IMEI")
-            else:
-                # Auto-fill IMEI if needed
+                missing.append("IMEI or Serial Number")
+            elif has_imei and has_serial:
+                # If both are provided, ask user which to use
+                result = messagebox.askyesnocancel(
+                    "Device ID Selection", 
+                    "Both IMEI and Serial Number are provided. Use IMEI? (No = use Serial Number, Cancel = abort)"
+                )
+                if result is None:  # Cancel
+                    return
+                elif result:  # Yes - use IMEI
+                    serial = ""  # Clear serial to use IMEI
+                else:  # No - use Serial Number
+                    imei = ""  # Clear IMEI to use serial
+            
+            # Auto-fill IMEI if using IMEI
+            if has_imei and not serial:
                 if len(imei) < 15:
                     # Show warning and ask for confirmation
                     if not self._show_imei_warning(imei):
@@ -553,6 +587,10 @@ class GNSFGUI(tk.Tk):
                     # Also update the main IMEI
                     self.imei_var.set(filled_imei)
                     self._dec_log(f"Filled up IMEI to {filled_imei}")
+                    imei = filled_imei
+        
+        # Determine device ID for decryption
+        device_id = serial if serial else imei
         
         if missing:
             messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
@@ -630,7 +668,7 @@ class GNSFGUI(tk.Tk):
                 
                 # Call our GUI decrypt function
                 result = self.decrypt_file_GUI(
-                    enc_type, firmware, model, csc, imei, 
+                    enc_type, firmware, model, csc, device_id, 
                     enc_file, dec_file, progress_callback
                 )
                 
@@ -709,7 +747,8 @@ Key features:
 • Automatically decrypt .enc2/.enc4 firmware files
 • Resume interrupted downloads
 • Check latest firmware versions across all regions
-• Auto-fill IMEI numbers (with correct checksum)
+• Auto-fill IMEI numbers (with correct checksum) or use Serial Numbers
+• Support for both IMEI and Serial Number device identification
 • Parse firmware version strings for detailed information
 
 This GUI provides an easy-to-use interface for the GNSF command line tool.
@@ -747,6 +786,7 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         self.csc_entry.configure(state=state)
         self.ver_entry.configure(state=state)
         self.imei_entry.configure(state=state)
+        self.serial_entry.configure(state=state)
         self.outdir_entry.configure(state=state)
         self.decrypt_check.configure(state=state)
         self.browse_btn.configure(state=state)
@@ -1016,9 +1056,11 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         :param path: Path to the folder to open
         """
         try:
-            if platform.system() == "Windows":
-                os.startfile(path)
-            elif platform.system() == "Darwin":  # macOS
+            system = platform.system()
+            if system == "Windows":
+                # Use subprocess for Windows to avoid os.startfile import issues
+                subprocess.run(["explorer", path], check=False)
+            elif system == "Darwin":  # macOS
                 subprocess.run(["open", path], check=False)
             else:  # Linux/Unix variants
                 subprocess.run(["xdg-open", path], check=False)
@@ -1038,6 +1080,7 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         csc = self.csc_var.get().strip().upper()
         ver = self.ver_var.get().strip()
         imei = self.imei_var.get().strip()
+        serial = self.serial_var.get().strip()
         outdir = self.outdir_var.get().strip()
         
         # Validate all required fields
@@ -1046,24 +1089,43 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         if not csc: missing.append("CSC")
         if not ver: missing.append("Firmware Version")
         
-        # Enhanced IMEI validation with auto-fill
-        if not imei or not imei.isdecimal() or len(imei) < 8:
-            messagebox.showerror("Error", "IMEI must contain at least 8 digits")
+        # Check if we have either IMEI or Serial Number
+        has_imei = imei and imei.isdecimal() and len(imei) >= 8
+        has_serial = serial and IMEIUtils.validate_serial_number(serial)
+        
+        if not has_imei and not has_serial:
+            messagebox.showerror("Error", "Either IMEI (≥8 digits) or Serial Number (1-35 alphanumeric) is required")
             return
-            
-        # Auto-fill IMEI if needed
-        if len(imei) < 15:
-            # Show warning and ask for confirmation
-            if not self._show_imei_warning(imei):
-                return  # User canceled
-                
-            filled_imei = self._fixup_imei(imei)
-            self.dec_imei_var.set(filled_imei)
-            # Also update the main IMEI
-            self.imei_var.set(filled_imei)
-            self._dec_log(f"Filled up IMEI to {filled_imei}")
-            # Important: Update our local variable to use the filled IMEI
-            imei = filled_imei  # This ensures the worker uses the complete IMEI
+        elif has_imei and has_serial:
+            # If both are provided, ask user which to use
+            result = messagebox.askyesnocancel(
+                "Device ID Selection", 
+                "Both IMEI and Serial Number are provided. Use IMEI? (No = use Serial Number, Cancel = abort)"
+            )
+            if result is None:  # Cancel
+                return
+            elif result:  # Yes - use IMEI
+                serial = ""  # Clear serial to use IMEI
+            else:  # No - use Serial Number
+                imei = ""  # Clear IMEI to use serial
+        
+        # Auto-fill IMEI if using IMEI
+        if has_imei and not serial:
+            if len(imei) < 15:
+                # Show warning and ask for confirmation
+                if not self._show_imei_warning(imei):
+                    return  # User canceled
+                    
+                filled_imei = self._fixup_imei(imei)
+                self.dec_imei_var.set(filled_imei)
+                # Also update the main IMEI
+                self.imei_var.set(filled_imei)
+                self._log(f"Filled up IMEI to {filled_imei}")
+                # Important: Update our local variable to use the filled IMEI
+                imei = filled_imei  # This ensures the worker uses the complete IMEI
+        
+        # Determine device ID for download
+        device_id = serial if serial else imei
         
         if missing:
             messagebox.showerror("Error", f"Required fields missing: {', '.join(missing)}")
@@ -1082,13 +1144,13 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
         except Exception as e:
             self._log(f"Could not parse firmware version: {ver}")
         
-        # Store the final IMEI in an instance variable to ensure it's accessible in the worker
-        self._current_download_imei = imei
+        # Store the final device ID in an instance variable to ensure it's accessible in the worker
+        self._current_download_device_id = device_id
         
         def worker():
             try:
-                # Use the stored IMEI value
-                current_imei = self._current_download_imei
+                # Use the stored device ID value
+                current_device_id = self._current_download_device_id
                 
                 self._log("Initializing client...")
                 self.dl_status_var.set("Initializing client...")
@@ -1098,8 +1160,8 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                 self._log("Querying binary info...")
                 self.dl_status_var.set("Querying binary info...")
                 self.dl_progress["value"] = 10
-                # Use the current_imei variable instead of the closure-captured imei
-                path, fname, size = getbinaryfile(client, ver, mdl, current_imei, csc)
+                # Use the current_device_id variable instead of the closure-captured imei
+                path, fname, size = getbinaryfile(client, ver, mdl, current_device_id, csc)
                 
                 fullpath = os.path.join(outdir, fname)
                 decrypted_path = fullpath.rsplit(".", 1)[0] if fname.endswith((".enc2", ".enc4")) else None
@@ -1228,7 +1290,7 @@ This GUI provides an easy-to-use interface for the GNSF command line tool.
                         
                         # Call our GUI decrypt function
                         result = self.decrypt_file_GUI(
-                            enc_ver, ver, mdl, csc, imei, 
+                            enc_ver, ver, mdl, csc, current_device_id, 
                             fullpath, dec, dl_decrypt_progress_callback
                         )
                         
