@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 from .errors import FUSError
 
 """
-Utilities for parsing Samsung firmware version strings to extract metadata.
+FOTA end point and firmware parsing.
 """
 
 def normalize_vercode(vercode: str) -> str:
