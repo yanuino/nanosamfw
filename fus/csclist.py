@@ -9,31 +9,42 @@
 #     This module defines CSC_DICT, a dictionary mapping 3‑letter Samsung CSC codes
 #     to their corresponding country or region names.
 #
+"""
+CSC mapping for Samsung firmware regions.
+
+This module provides CSC_DICT, a dictionary that maps 3-letter Samsung CSC
+codes to their corresponding country or region names. It is used by the CLI
+and GUI components to display or validate CSC/region information.
+
+Attributes:
+    CSC_DICT (dict): Mapping of 3-letter CSC codes to region/country names.
+"""
 
 CSC_DICT = {
+    # pylint: disable=line-too-long
     # United States of America
     #'OYM': 'XAA',
     #'OYN': 'ATT, VZW, TMB, USC, XAA',
-
+    #
     # France, Germany, Italy, Poland, United Kingdom
     #'OXA': 'BTU, CPW, DBT, ITV, KOR, XEF, XEO',
-
+    #
     # Kazakhstan, Russia, United Arab Emirates
     #'OXE': 'CAC, RTL, SEK, SER, SKZ',
     #'QXE': 'OXE LAFLEUR',
-
+    #
     # Malaysia, Philippines, Thailand, Vietnam
     #'OLB': 'GLB, MM1, SIN, SMA, STH, THL, XEV, XME, XSE, XSP, XTC, XTE, XXV',
-
+    #
     # Middle East Countries
     #'OJP': 'BTC, EGY, JED, KOR, KSA, MAT, MED, MID, MMV, MWD, PAK, THR, WAN, XSG, XSS',
     #'OJV': 'ABS, ACR, AFG, AFR, ARB, BTC, ECT, EGY, FWD, JED, KEN, KSA, LYS, MAT, MED, MID, MMC, MRT, MWD, PAK, THR, TMC, TUN, TUR, WAN, WTL, XFA, XFC, XFE, XFM, XFV, XSG',
-
+    #
     # Vodafone
     #'VFG': 'ATL, CNX, CYV, MOB, MTL, OMN, PRO, SFR, SIM, SWC, TCL, TOP, V D2, VDC, VDF, VDH, VDI, VDP, VDR, VGR, VIP, VOD, VOP',
     #'YFG': 'VFG BLACK EDITION',
     #'VFR': 'ATL, OMN, VD2, VDF, VOD',
-    
+    #
     #'OXF': 'ALB, BGL, CMF, ORL, SEB, TMT, TOP, TRA, XEH',
     #'OXX': 'BGL, CYO, ERO, EUR, MSR, ORS, PHE, SEE, SIO, TPH, TSR, TWO, VVT, XEF, XEO, XEZ, XSK',
     #'YXX': 'OXX BLACK EDITION',
@@ -50,7 +61,7 @@ CSC_DICT = {
     #'UVC': 'CTI, CTP, CTU',
     #'OXI': 'ITV, OMN',
     #'UVY': 'IUS, UNE',
-    
+    # pylint: enable=line-too-long
     'AFG': 'AFGHANISTAN',
     'ALB': 'ALBANIA',
     'AVF': 'ALBANIA',
