@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-python.python",          // Python support
+    "ms-python.vscode-pylance",  // IntelliSense & type checking
+    "ms-python.black-formatter", // Black formatter
+    "ms-python.pylint",          // Pylint linter
+    "ms-python.isort"            // Organize imports
+  ],
+  "unwantedRecommendations": []
+}

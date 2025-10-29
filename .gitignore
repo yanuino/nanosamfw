@@ -1,9 +1,139 @@
-.venv
-**/.venv
-**/.venv_*
-downloads
-**/__pycache__
-dist
-build
+# Byte-compiled / optimized / DLL files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+*.pyd
+*.dll
+*.dylib
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
 *.spec
-**/.DS_Store
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.pyright/
+
+# Linters / formatters
+.ruff_cache/
+.pylint.d/
+
+# Cython debug symbols
+cython_debug/
+
+# Jupyter
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# Tool-specific
+.pdm-python
+pdm.lock
+.poetry/
+.pyproject-build/
+pip-wheel-metadata/
+
+# Editors / IDEs
+.vscode/**
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.code-workspace
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+log/
+
+# ----------------------------
+# Project-specific
+# ----------------------------
+
+downloads/
+firmwares/
+data/
+!data/.gitkeep
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+
+# Temporary / backup files
+*.bak
+*.backup
+*.old
+*.tmp
+*.partial
+*.part
+*.crdownload
+*.download
+*.lock
+*.swp
+*~

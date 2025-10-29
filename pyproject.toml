@@ -1,0 +1,49 @@
+[project]
+requires-python = ">=3.14"
+dependencies = [
+    "requests>=2.32.5",
+    "tqdm>=4.67.1",
+    "pycryptodome>=3.23.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py314"]
+skip-string-normalization = true
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip_gitignore = true
+combine_as_imports = true
+known_first_party = ["download", "fus"]
+src_paths = ["download", "fus"]
+include_trailing_comma = true
+multi_line_output = 3
+
+[tool.pylint.main]
+ignore = ["CVS", "__pycache__", ".venv", "venv", "AppIcons", "downloads", "firmwares", "screenshots", "build", "dist"]
+# source-roots = ["."]
+
+[tool.pylint.format]
+max-line-length = 100     # Black/isort alignement
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+  "C0114",  # missing-module-docstring
+  "C0115",  # missing-class-docstring
+  "C0116",  # missing-function-docstring
+  "R0903"   # too-few-public-methods
+]
+# Ensure that the unused import warning is enabled (W0611)
+enable = ["unused-import"]
+
+[tool.pylint.basic]
+# Prevent "invalid-name" on short names (C0103)
+good-names = [
+  "i", "j", "k", "_",     # counters/tokens
+  "id", "pk", "db",       # id and database
+  "fn", "fp",             # filename / filepath
+  "ex",                   # exception alias
+  "ts", "dt"              # timestamps / datetime
+]
