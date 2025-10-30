@@ -1,0 +1,26 @@
+{
+  "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.DS_Store": true
+  },  
+  // Typage avec Pylance
+  "python.analysis.typeCheckingMode": "basic", // ou "strict"
+  "python.analysis.inlayHints.variableTypes": true,
+  "python.analysis.inlayHints.functionReturnTypes": true,
+
+  // Formatage automatique avec Black
+  "editor.defaultFormatter": "ms-python.black-formatter",
+  "editor.formatOnSave": true,
+
+  // Tri des imports (isort)
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+
+  // Règle visuelle pour la longueur des lignes
+  "editor.rulers": [100],
+
+  // Tests (au cas où)
+  "python.testing.pytestEnabled": true
+}
