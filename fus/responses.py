@@ -44,7 +44,7 @@ def get_info_from_inform(root: ET.Element) -> Tuple[str, str, int]:
 
     Raises:
         InformError: If the inform response status is not 200.
-        (Other exceptions may propagate if expected XML elements are missing or malformed.)
+        AttributeError: If expected XML elements are missing or malformed.
     """
     status = int(root.find("./FUSBody/Results/Status").text)  # type: ignore
     if status != 200:

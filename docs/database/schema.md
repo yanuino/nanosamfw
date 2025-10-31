@@ -73,10 +73,10 @@ Logs IMEI-based firmware query and upgrade operations with status tracking.
 
 ## SQL Schema Files
 
-The schema definitions are maintained in the following files:
+The schema definitions are maintained in the following source files:
 
-- [`download/sql/download.sql`](../../download/sql/download.sql) - Downloads table schema
-- [`download/sql/imei_log.sql`](../../download/sql/imei_log.sql) - IMEI log table schema
+- `download/sql/download.sql` - Downloads table schema
+- `download/sql/imei_log.sql` - IMEI log table schema
 
 ## Usage
 

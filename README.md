@@ -10,6 +10,14 @@ Whether you're building automation scripts, desktop tools, or backend services, 
 
 ---
 
+## 📖 Documentation
+
+Looking for guides, API references, and examples? The full project documentation is available at:
+
+- https://yanuino.github.io/nanosamfw/
+
+---
+
 ## 🔧 Requirements
 
 - Python 3.12+  

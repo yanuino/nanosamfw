@@ -116,7 +116,7 @@ class FUSClient:
         xml = self._makereq("NF_DownloadBinaryInitForMass.do", payload)
         return ET.fromstring(xml)
 
-    def stream(self, filename: str, start: int = 0):
+    def stream(self, filename: str, start: int = 0) -> requests.Response:
         """
         Stream firmware download from cloud server.
 

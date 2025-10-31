@@ -119,7 +119,7 @@ def decrypt_nonce(enc_nonce: str) -> str:
         Decrypted plaintext nonce.
 
     Raises:
-        (propagates base64 and AES decode errors if malformed)
+        Exception: Propagates base64 and AES decode errors if input is malformed.
     """
     data = base64.b64decode(enc_nonce)
     return aes_cbc_decrypt(data, KEY_1.encode()).decode()
