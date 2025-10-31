@@ -23,6 +23,7 @@ from typing import Optional, Tuple
 
 import requests
 
+from .config import DEFAULT_CONFIG
 from .errors import FUSError
 
 
@@ -210,9 +211,15 @@ def get_latest_version(model: str, region: str) -> str:
         FUSError: If the endpoint returns 403 or other domain-specific errors.
         requests.exceptions.HTTPError: For other non-success HTTP responses.
     """
+    # Use the request_timeout from DEFAULT_CONFIG (FUSConfig), fallback to 30 if not present.
+    if hasattr(DEFAULT_CONFIG, "request_timeout"):
+        timeout = DEFAULT_CONFIG.request_timeout
+    else:
+        timeout = 30
     req = requests.get(
         "https://fota-cloud-dn.ospserver.net/firmware/" + region + "/" + model + "/version.xml",
         headers={'User-Agent': 'curl/7.87.0'},
+        timeout=timeout,
     )
     if req.status_code == 403:
         raise FUSError("Model or region not found (403)")
