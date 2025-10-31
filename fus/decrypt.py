@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from typing import BinaryIO, Optional
+from typing import BinaryIO, Callable, Optional
 
 from Crypto.Cipher import AES
 from tqdm import tqdm
@@ -85,7 +85,7 @@ def _decrypt_progress(
     total: int,
     *,
     chunk_size: int = 4096,
-    progress_cb=None,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
 ) -> None:
     """
     Decrypt the input stream to the output stream with optional progress.
@@ -127,7 +127,12 @@ def _decrypt_progress(
 
 
 def decrypt_file(
-    enc_path: str, out_path: str, *, enc_ver: int, key: bytes, progress_cb=None
+    enc_path: str,
+    out_path: str,
+    *,
+    enc_ver: int,
+    key: bytes,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
 ) -> None:
     """
     Decrypt an encrypted firmware file to disk.

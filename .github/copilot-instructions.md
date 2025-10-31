@@ -51,10 +51,20 @@ nanosamfw (NotANOtherSamsungFirmware downloader) is a Python package for program
 ## Development Guidelines
 
 ### Code Style
-- Follow PEP 8 style guide
-- Use type hints for function parameters and return values
-- Document public APIs with docstrings
+- Follow PEP 8 style guide with project-specific configurations from `pyproject.toml`
+- **Line Length**: Maximum 100 characters (enforced by Black and Pylint)
+- **Type Hints**: Use type hints for all function parameters and return values
+- **Docstrings**: Document public APIs with Google-style docstrings
+- **Import Ordering**: Use isort profile "black" with known first-party modules: `download`, `fus`
+- **Good Names**: Short variable names are acceptable per project standards:
+  - Loop counters: `i`, `j`, `k`, `_`
+  - Database: `id`, `pk`, `db`
+  - Files: `fn` (filename), `fp` (filepath)
+  - Exceptions: `ex`
+  - Time: `ts` (timestamp), `dt` (datetime)
+- **String Quotes**: Skip string normalization (preserve quote style)
 - Keep modules focused and single-responsibility
+- Combine imports from the same module using `as` imports
 
 ### Error Handling
 - Use custom error types from `fus/errors.py`
