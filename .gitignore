@@ -109,6 +109,9 @@ desktop.ini
 logs/
 log/
 
+# mkdocs site build
+/site/
+
 # ----------------------------
 # Project-specific
 # ----------------------------
