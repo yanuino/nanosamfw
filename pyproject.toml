@@ -30,9 +30,6 @@ max-line-length = 100     # Black/isort alignement
 
 [tool.pylint."MESSAGES CONTROL"]
 disable = [
-  "C0114",  # missing-module-docstring
-  "C0115",  # missing-class-docstring
-  "C0116",  # missing-function-docstring
   "R0903"   # too-few-public-methods
 ]
 # Ensure that the unused import warning is enabled (W0611)

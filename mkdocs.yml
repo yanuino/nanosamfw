@@ -1,0 +1,35 @@
+site_name: nanosamfw Project Documentation
+site_description: Documentation for the nanosamfw project
+site_author: Yannick Locque
+
+theme:
+  name: material
+  language: en
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            separate_signature: true
+            members_order: source
+            inherited_members: true
+            filters: ["!^_"]
+nav:
+  - Index: index.md
+  - Core API:
+    - FUS Client: api/fus.client.md
+    - Cryptography: api/fus.crypto.md
+    - Device ID: api/fus.deviceid.md
+    - Firmware: api/fus.firmware.md
+    - Errors: api/fus.errors.md
+  - Download API:
+    - Service: api/download.service.md
+    - Repository: api/download.repository.md
+    - Configuration: api/download.config.md
+  - Database:
+    - Schema: database/schema.md
+    - IMEI Repository: api/download.imei_repository.md
