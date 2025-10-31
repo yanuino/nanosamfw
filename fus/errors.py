@@ -9,6 +9,10 @@ particular, DeviceIdError is raised by the device identifier utilities
 
 Exceptions:
     FUSError: Base class for FUS-related errors.
+    AuthError: Raised for authentication failures in FUS operations.
+    InformError: Raised for protocol or information errors in FUS communication.
+    DownloadError: Raised when a firmware download fails or is incomplete.
+    DecryptError: Raised when firmware decryption fails.
     DeviceIdError: Raised by fus.deviceid helpers on invalid TAC/IMEI/serial input.
 """
 
