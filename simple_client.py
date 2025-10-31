@@ -10,8 +10,8 @@ from fus.messages import build_binary_inform
 from fus.responses import parse_inform
 
 model, region = "SM-A146P", "EUX"  # EUX
-tac = "35297624"  # code TAC à 8 chiffres
-imei = "352976245060954"  # sera auto‑complété à 15 chiffres
+tac = "35297624"  # 8-digit TAC code
+imei = "352976245060954"  # will be auto-completed to 15 digits
 ver = get_latest_version(model, region)  # latest via version.xml FOTA
 info = read_firmware_info(ver)
 print(f"Latest: {ver}\nBL: {info['bl']}\nDate: {info['date']}\nIter: {info['it']}")
