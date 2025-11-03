@@ -109,7 +109,7 @@ def list_downloads(...) -> Iterable[DownloadRecord]:
 ### Cryptographic Operations
 - **Do not modify** `KEY_1`, `KEY_2` constants - they're Samsung-specific
 - **Do not change** logic_check algorithm - it's protocol-defined
-- Use established pycryptodome primitives (AES.new, PKCS#7 padding)
+- Use established pycryptodome primitives (AES.new, PKCS padding)
 - ENC4 key derivation requires a live FUS inform call (can't be pre-computed)
 
 ### Testing & Validation
@@ -160,7 +160,7 @@ mkdocs gh-deploy
 - Verify IMEI/Serial validation with `deviceid.py` helpers
 
 ## License and Attribution
-This project is MIT licensed and builds upon [GNSF](https://github.com/keklick1337/gnsf) by keklick1337.
+This project is MIT licensed and builds upon GNSF (see: https://github.com/keklick1337/gnsf) by keklick1337.
 - Maintain copyright notices in file headers
 - Document significant changes
 - Credit original authors when adapting code
