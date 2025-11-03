@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 Yannick Locque (yanuino)
 
+"""Samsung Firmware Update Service (FUS) client implementation.
+
+Provides the core FUSClient class for communicating with Samsung's firmware
+servers using the FUS protocol including inform, init, and download operations.
+"""
 
 from __future__ import annotations
 

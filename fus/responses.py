@@ -25,6 +25,18 @@ from .errors import InformError
 
 @dataclass(frozen=True)
 class InformInfo:
+    """FUS BinaryInform response data.
+
+    Dataclass holding parsed metadata from a Samsung FUS BinaryInform XML response.
+
+    Attributes:
+        latest_fw_version: Latest firmware version string, or None if not provided.
+        logic_value_factory: Logic value for ENC4 decryption key derivation, or None.
+        filename: Binary firmware filename on the server.
+        path: Server model path, or None if not provided.
+        size_bytes: Firmware file size in bytes, or None if not provided.
+    """
+
     latest_fw_version: Optional[str]
     logic_value_factory: Optional[str]
     filename: str
