@@ -37,13 +37,15 @@ client = FUSClient()  # Gets initial NONCE from server
 
 # 2. BinaryInform - query firmware metadata
 xml = client.inform(build_binary_inform(version, model, csc, imei, client.nonce))
-filename, path, size = get_info_from_inform(xml)
+info = parse_inform(xml)
+# info.filename, info.path, info.size_bytes, info.latest_fw_version, info.logic_value_factory
 
 # 3. BinaryInit - authorize download (uses logic_check on last 16 chars of filename)
-client.init(build_binary_init(filename, client.nonce))
+client.init(build_binary_init(info.filename, client.nonce))
 
-# 4. Download - stream with Range support
-response = client.stream(filename, start=0)  # Returns requests.Response
+# 4. Download - stream with Range support (requires full path)
+remote = f"{info.path}/{info.filename}" if info.path else info.filename
+response = client.stream(remote, start=0)  # Returns requests.Response
 
 # 5. Decrypt (optional) - ENC4 requires logic_value from inform response
 key = get_v4_key(version, model, csc, imei, client)

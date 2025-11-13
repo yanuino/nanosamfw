@@ -20,7 +20,7 @@ from fus.decrypt import decrypt_file, get_v4_key
 from fus.errors import DownloadError
 from fus.firmware import get_latest_version, normalize_vercode
 from fus.messages import build_binary_inform, build_binary_init
-from fus.responses import get_info_from_inform
+from fus.responses import parse_inform
 
 from .config import PATHS
 from .repository import DownloadRecord, upsert_download
@@ -54,10 +54,10 @@ def _extract_filename_and_size(inform_root: ET.Element) -> Tuple[str, int]:
         Tuple of (filename, size_bytes).
 
     Raises:
-        InformError: If the inform response status is not 200.
+        InformError: If the inform response status is not 200 or required fields are missing.
     """
-    filename, _path, size = get_info_from_inform(inform_root)
-    return filename, size
+    info = parse_inform(inform_root)
+    return info.filename, info.size_bytes
 
 
 def _download_to_file(
@@ -201,7 +201,6 @@ def download_firmware(
         decrypt_file(
             str(enc_final),
             str(dec_path),
-            enc_ver=4,
             key=key,  # type: ignore
             progress_cb=progress_cb,
         )

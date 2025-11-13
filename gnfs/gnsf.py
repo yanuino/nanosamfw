@@ -5,21 +5,24 @@
 
 import argparse
 import base64
+import concurrent.futures
 import hashlib
 import os
 import random
 import string
 import sys
+import threading
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, Optional, Tuple
+
 import requests
 from Crypto.Cipher import AES
 from tqdm import tqdm
+
 from csclist import CSC_DICT
-import concurrent.futures
-import threading
 
 VERSION = "1.0.4"
+
 
 class CryptoUtils:
     """
@@ -49,7 +52,7 @@ class CryptoUtils:
         :param data: padded bytes
         :return: original unpadded bytes
         """
-        return data[:-data[-1]]
+        return data[: -data[-1]]
 
     @staticmethod
     def aes_encrypt(inp: bytes, key: bytes) -> bytes:
@@ -212,7 +215,7 @@ class IMEIUtils:
 
         # Check if we have either IMEI or Serial Number
         device_id = IMEIUtils.get_device_id(args)
-        
+
         if not device_id:
             print("Need either IMEI (use -i) or Serial Number (use -s)")
             return 1
@@ -227,7 +230,7 @@ class IMEIUtils:
         # If using IMEI, validate and auto-fill if needed
         if hasattr(args, 'dev_imei') and args.dev_imei:
             return IMEIUtils.fixup_imei(args)
-        
+
         return 1
 
     @staticmethod
@@ -334,19 +337,19 @@ class FirmwareUtils:
     """
     Utilities for parsing Samsung firmware version strings to extract metadata.
     """
-    
+
     @staticmethod
     def read_firmware(firmware: str) -> Tuple[Optional[str], Optional[int], int, int, int]:
         """
         Gets basic information from a firmware string.
-        
+
         :param firmware: Samsung firmware version string
         :return: Tuple containing (bootloader_type, major_version, year, month, minor_version)
         """
         # Default values in case parsing fails
         default_year = 2020
         default_month = 0  # January (0-indexed)
-        
+
         # First normalize to handle both slash-separated and compact formats
         if "/" in firmware:
             # Handle slash-separated format (newer style)
@@ -356,20 +359,20 @@ class FirmwareUtils:
             # Handle compact format (older style like N7000XXKKA)
             # Extract the last 6 characters, assuming model prefix varies in length
             pda = firmware[-6:] if len(firmware) >= 6 else firmware
-        
+
         result = [None, None, default_year, default_month, 0]
-        
+
         try:
             # Detect if we're using the newer (R=2018+) or older (A=2001+) scheme
             # This could be based on the year character or device model prefix
             use_new_scheme = ord(pda[3]) >= ord('R') if len(pda) >= 4 else True
-            
+
             if len(pda) >= 6 and pda[0] in ["U", "S"]:
                 # Bootloader version (U = Upgrade, S = Security)
                 result[0] = pda[0:2]
                 # Major version iteration (A = 0, B = 1, ... Z = Public Beta)
                 result[1] = ord(pda[2]) - ord("A") if pda[2] in string.ascii_uppercase else 0
-                
+
                 # Year calculation based on scheme
                 if use_new_scheme:
                     # Newer devices (R=2018, S=2019, T=2020...)
@@ -377,7 +380,7 @@ class FirmwareUtils:
                 else:
                     # Older devices (A=2001, B=2002, K=2011...)
                     result[2] = (ord(pda[3]) - ord("A")) + 2001
-                    
+
                 # Month (A = 01, B = 02, ... L = 12)
                 month_char = pda[4]
                 if month_char in string.ascii_uppercase and ord(month_char) - ord("A") <= 11:
@@ -385,7 +388,7 @@ class FirmwareUtils:
                 else:
                     # Invalid month character, default to January
                     result[3] = 0
-                    
+
                 # Minor version iteration (1 = 1, ... A = 10 ...)
                 if pda[5] in string.digits + string.ascii_uppercase:
                     result[4] = (string.digits + string.ascii_uppercase).index(pda[5])
@@ -399,43 +402,46 @@ class FirmwareUtils:
                         result[2] = (ord(pda[-3]) - ord("R")) + 2018
                     else:
                         result[2] = (ord(pda[-3]) - ord("A")) + 2001
-                    
+
                     # Month (A = 01, B = 02, ... L = 12)
                     if len(pda) >= 2:
                         month_char = pda[-2]
-                        if month_char in string.ascii_uppercase and ord(month_char) - ord("A") <= 11:
+                        if (
+                            month_char in string.ascii_uppercase
+                            and ord(month_char) - ord("A") <= 11
+                        ):
                             result[3] = ord(month_char) - ord("A")
                         else:
                             # Invalid month character, default to January
                             result[3] = 0
-                        
+
                     # Minor version iteration (1 = 1, ... A = 10 ...)
                     if len(pda) >= 1:
                         if pda[-1] in string.digits + string.ascii_uppercase:
                             result[4] = (string.digits + string.ascii_uppercase).index(pda[-1])
                         else:
                             result[4] = 0
-        
+
         except (IndexError, ValueError) as e:
             # If parsing fails, log and use default values
             # We've already initialized result with default values
             pass
-            
+
         # Ensure month is in valid range 0-11
         if result[3] is None or result[3] < 0 or result[3] > 11:
             result[3] = default_month
-        
+
         # Ensure year is reasonable
         if result[2] is None or result[2] < 2000 or result[2] > 2030:
             result[2] = default_year
-        
+
         return (result[0], result[1], result[2], result[3], result[4])
 
     @staticmethod
     def read_firmware_dict(firmware: str) -> dict:
         """
         Return firmware information as a dictionary with meaningful keys.
-        
+
         :param firmware: Samsung firmware version string
         :return: Dictionary with 'bl' (bootloader), 'date' (year.month), 'it' (iteration) keys
         """
@@ -443,27 +449,27 @@ class FirmwareUtils:
         return {
             "bl": ff[0],
             "date": f"{ff[2]}.{ff[3]+1:02d}",  # Adding 1 to month for 1-based month numbering
-            "it": f"{ff[1]}.{ff[4]}"
+            "it": f"{ff[1]}.{ff[4]}",
         }
-    
+
     @staticmethod
     def format_firmware_info(firmware: str) -> str:
         """
         Format firmware information as a human-readable string.
-        
+
         :param firmware: Samsung firmware version string
         :return: Formatted string with firmware details
         """
         try:
             info = FirmwareUtils.read_firmware_dict(firmware)
             norm_fw = normalizevercode(firmware)
-            
+
             result = f"Firmware: {norm_fw}\n"
             if info["bl"]:
                 result += f"Bootloader type: {info['bl']}\n"
             result += f"Date: {info['date']} (YYYY.MM)\n"
             result += f"Version iteration: {info['it']}"
-            
+
             return result
         except ValueError:
             return f"Could not parse firmware string: {firmware}"
@@ -480,8 +486,10 @@ def getv4key(version: str, model: str, region: str, device_id: str) -> Optional[
     :return: 16‐byte AES key or None on failure
     """
     if not device_id:
-        raise ValueError("Device ID (IMEI or Serial Number) is required for V4 key retrieval. Use -i or -s")
-    
+        raise ValueError(
+            "Device ID (IMEI or Serial Number) is required for V4 key retrieval. Use -i or -s"
+        )
+
     if not region:
         raise ValueError("Region is required for V4 key retrieval. Use -r")
 
@@ -512,7 +520,7 @@ def getv2key(version: str, model: str, region: str, _device_id: str) -> bytes:
     """
     if not region:
         raise ValueError("Region is required for V2 key retrieval. Use -r")
-    
+
     deckey = f"{region}:{model}:{version}"
     return hashlib.md5(deckey.encode()).digest()
 
@@ -546,17 +554,22 @@ def decrypt_progress(inf: Any, outf: Any, key: bytes, length: int) -> None:
 
 
 class FUSClient:
-    """ FUS API client. """
+    """FUS API client."""
+
     def __init__(self):
         self.auth = ""
         self.sessid = ""
-        self.makereq("NF_DownloadGenerateNonce.do") # initialize nonce
+        self.makereq("NF_DownloadGenerateNonce.do")  # initialize nonce
+
     def makereq(self, path: str, data: str = "") -> str:
-        """ Make a FUS request to a given endpoint. """
+        """Make a FUS request to a given endpoint."""
         authv = 'FUS nonce="", signature="' + self.auth + '", nc="", type="", realm="", newauth="1"'
-        req = requests.post("https://neofussvr.sslcs.cdngc.net/" + path, data=data,
-                            headers={"Authorization": authv, "User-Agent": "Kies2.0_FUS"},
-                            cookies={"JSESSIONID": self.sessid})
+        req = requests.post(
+            "https://neofussvr.sslcs.cdngc.net/" + path,
+            data=data,
+            headers={"Authorization": authv, "User-Agent": "Kies2.0_FUS"},
+            cookies={"JSESSIONID": self.sessid},
+        )
         # If a new NONCE is present, decrypt it and update our auth token.
         if "NONCE" in req.headers:
             self.encnonce = req.headers["NONCE"]
@@ -567,18 +580,29 @@ class FUSClient:
             self.sessid = req.cookies["JSESSIONID"]
         req.raise_for_status()
         return req.text
+
     def downloadfile(self, filename: str, start: int = 0) -> requests.Response:
-        """ Make a FUS cloud request to download a given file. """
+        """Make a FUS cloud request to download a given file."""
         # In a cloud request, we also need to pass the server nonce.
-        authv = 'FUS nonce="' + self.encnonce + '", signature="' + self.auth \
+        authv = (
+            'FUS nonce="'
+            + self.encnonce
+            + '", signature="'
+            + self.auth
             + '", nc="", type="", realm="", newauth="1"'
+        )
         headers = {"Authorization": authv, "User-Agent": "Kies2.0_FUS"}
         if start > 0:
             headers["Range"] = "bytes={}-".format(start)
-        req = requests.get("http://cloud-neofussvr.samsungmobile.com/NF_DownloadBinaryForMass.do",
-                           params="file=" + filename, headers=headers, stream=True)
+        req = requests.get(
+            "http://cloud-neofussvr.samsungmobile.com/NF_DownloadBinaryForMass.do",
+            params="file=" + filename,
+            headers=headers,
+            stream=True,
+        )
         req.raise_for_status()
         return req
+
 
 def normalizevercode(vercode: str) -> str:
     """
@@ -596,10 +620,11 @@ def normalizevercode(vercode: str) -> str:
 
 
 def getlatestver(model: str, region: str) -> str:
-    """ Get the latest firmware version code for a model and region. """
-    req = requests.get("https://fota-cloud-dn.ospserver.net/firmware/"
-                       + region + "/" + model + "/version.xml",
-                       headers={'User-Agent': 'curl/7.87.0'})
+    """Get the latest firmware version code for a model and region."""
+    req = requests.get(
+        "https://fota-cloud-dn.ospserver.net/firmware/" + region + "/" + model + "/version.xml",
+        headers={'User-Agent': 'curl/7.87.0'},
+    )
     if req.status_code == 403:
         raise Exception("Model or region not found (403)")
     req.raise_for_status()
@@ -609,9 +634,8 @@ def getlatestver(model: str, region: str) -> str:
         raise Exception("No latest firmware available")
     return normalizevercode(vercode)
 
-def decrypt_file(
-    args: argparse.Namespace, version: int, encrypted: str, decrypted: str
-) -> int:
+
+def decrypt_file(args: argparse.Namespace, version: int, encrypted: str, decrypted: str) -> int:
     """
     High‐level helper to decrypt a .enc2/.enc4 file using the correct key.
 
@@ -643,6 +667,8 @@ def initdownload(client: FUSClient, filename: str) -> None:
     """
     req = FUSMessageBuilder.binaryinit(filename, client.nonce)
     resp = client.makereq("NF_DownloadBinaryInitForMass.do", req)
+    print(resp)
+
 
 def getbinaryfile(
     client: FUSClient, fw: str, model: str, device_id: str, region: str
@@ -750,7 +776,7 @@ class GNSFApp:
             else:
                 # Create a thread-safe print lock to avoid garbled output
                 print_lock = threading.Lock()
-                
+
                 def check_region(region_pair):
                     """Worker function to check firmware for a single region"""
                     region, name = region_pair
@@ -768,7 +794,7 @@ class GNSFApp:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                     # Submit all regions to the thread pool and wait for completion
                     list(executor.map(check_region, CSC_DICT.items()))
-                    
+
             return 0
 
         # download needs region

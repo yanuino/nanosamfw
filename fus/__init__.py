@@ -35,8 +35,8 @@ Example:
 """
 
 from .client import FUSClient
-from .decrypt import decrypt_file, get_v2_key, get_v4_key
+from .decrypt import decrypt_file, get_v2_key, get_v4_key, get_v4_key_from_logic
 from .deviceid import is_device_id_required, validate_imei, validate_serial
 from .errors import AuthError, DecryptError, DeviceIdError, DownloadError, FUSError, InformError
 from .firmware import get_latest_version, normalize_vercode, read_firmware_info
-from .responses import InformInfo, get_info_from_inform, parse_inform
+from .responses import InformInfo, parse_inform

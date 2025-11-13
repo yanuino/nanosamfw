@@ -5,6 +5,7 @@ Provides functions to derive ENC2/ENC4 keys and to decrypt streaming firmware bl
 
 Functions:
 - get_v2_key: derive MD5-based ENC2 key.
+- get_v4_key_from_logic: derive ENC4 key from firmware version and logic value.
 - get_v4_key: retrieve logic value via FUS inform and derive ENC4 key.
 - decrypt_file: decrypt a file encrypting in 16-byte AES blocks.
 """
@@ -42,6 +43,23 @@ def get_v2_key(version: str, model: str, region: str, _device_id: str) -> bytes:
     return hashlib.md5(deckey.encode()).digest()
 
 
+def get_v4_key_from_logic(fw_version: str, logic_value: str) -> bytes:
+    """
+    Derive ENC4 key (V4) from firmware version and logic value.
+
+    Use this when you already have the logic value from a previous inform call.
+
+    Args:
+        fw_version: Latest firmware version string from inform response.
+        logic_value: Logic value factory string from inform response.
+
+    Returns:
+        MD5 digest bytes derived from the logic-check value.
+    """
+    deckey = logic_check(fw_version, logic_value)
+    return hashlib.md5(deckey.encode()).digest()
+
+
 def get_v4_key(
     version: str, model: str, region: str, device_id: str, client: FUSClient | None = None
 ) -> Optional[bytes]:
@@ -72,10 +90,10 @@ def get_v4_key(
     try:
         fwver = resp.find("./FUSBody/Results/LATEST_FW_VERSION/Data").text  # type: ignore
         logicval = resp.find("./FUSBody/Put/LOGIC_VALUE_FACTORY/Data").text  # type: ignore
+        print(f"Obtained logic value: {logicval} for FW version: {fwver}")
     except Exception as exc:
         raise InformError("Could not obtain decryption key; check model/region/device_id.") from exc
-    deckey = logic_check(fwver, logicval)  # type: ignore
-    return hashlib.md5(deckey.encode()).digest()
+    return get_v4_key_from_logic(fwver, logicval)  # type: ignore
 
 
 def _decrypt_progress(
@@ -130,7 +148,6 @@ def decrypt_file(
     enc_path: str,
     out_path: str,
     *,
-    enc_ver: int,
     key: bytes,
     progress_cb: Optional[Callable[[int, int], None]] = None,
 ) -> None:
@@ -140,7 +157,6 @@ def decrypt_file(
     Args:
         enc_path: Path to the encrypted input file.
         out_path: Path to write the decrypted output file.
-        enc_ver: Encryption version (unused by this function but kept for API parity).
         key: AES key used for decryption.
         progress_cb: Optional progress callback(progress_bytes, total_bytes).
 

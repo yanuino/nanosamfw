@@ -5,7 +5,7 @@
         "**/.DS_Store": true
   },  
   // Typage avec Pylance
-  "python.analysis.typeCheckingMode": "basic", // ou "strict"
+  "python.analysis.typeCheckingMode": "standard", // ou "strict"
   "python.analysis.inlayHints.variableTypes": true,
   "python.analysis.inlayHints.functionReturnTypes": true,
 
