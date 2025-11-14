@@ -2,67 +2,108 @@
 # Copyright (c) 2025 Vladislav Tislenko (keklick1337)
 # Copyright (c) 2025 Yannick Locque (yanuino)
 
-"""Firmware download service with database tracking.
+"""Firmware download service with repository management.
 
-This package provides high-level firmware download functionality with automatic
-database tracking, resume support, and optional decryption. It orchestrates the
-complete download workflow from version resolution through decryption and
-persistence.
+This package provides high-level firmware management with a centralized firmware
+repository, automatic FOTA version checking, intelligent download handling, and
+configurable decryption.
+
+Architecture:
+    - Firmware Repository: Centralized storage with metadata tracking
+    - IMEI Log: Request tracking for all FOTA queries and downloads
+    - Service Layer: High-level API for firmware operations
+    - Configuration: Customizable paths for firmware and decrypted files
 
 Main Components:
-    - download_firmware: High-level API for complete firmware download workflow
-    - DownloadRecord: Database model for firmware download metadata
+    - check_firmware: Query FOTA for latest version
+    - get_or_download_firmware: Smart download (checks repository first)
+    - decrypt_firmware: Decrypt from repository to configurable path
+    - download_and_decrypt: Complete workflow convenience function
+    - FirmwareRecord: Repository model with all InformInfo metadata
     - Database utilities: SQLite initialization, health checks, and repair
-    - Repository layer: Clean data access patterns for downloads and IMEI logs
 
 Features:
-    - Automatic version resolution from Samsung FOTA servers
+    - Centralized firmware repository (no per-model/CSC duplication)
+    - Automatic FOTA version checking with IMEI logging
+    - Smart downloads (skip if already in repository)
     - HTTP Range support for resuming interrupted downloads
-    - Optional automatic decryption of ENC4 encrypted firmware
-    - SQLite database tracking of all downloads
+    - ENC4 decryption using cached logic values (no extra FUS calls)
+    - Configurable output paths via environment variables
     - Progress callback support for UI integration
-    - Organized storage by model and CSC
 
 Example:
-    Simple one-line firmware download::
+    Check latest firmware version::
 
-        from download import download_firmware
+        from download import check_firmware
 
-        record = download_firmware(
-            model="SM-G998B",
-            csc="EUX",
-            device_id="352976245060954",
-            decrypt=True,
+        version = check_firmware("SM-A146P", "EUX", "352976245060954")
+        print(f"Latest: {version}")
+
+    Download firmware to repository::
+
+        from download import get_or_download_firmware
+
+        firmware = get_or_download_firmware(
+            version,
+            "SM-A146P",
+            "EUX",
+            "352976245060954",
             resume=True
         )
-        print(f"Downloaded to: {record.path}")
-        print(f"Version: {record.version_code}")
+        print(f"Encrypted: {firmware.encrypted_file_path}")
+        print(f"Logic value: {firmware.logic_value_factory}")
 
-    Query download history::
+    Decrypt from repository::
 
-        from download import list_downloads, find_download
+        from download import decrypt_firmware
 
-        # List all downloads for a model/CSC
-        for rec in list_downloads(model="SM-G998B", csc="EUX"):
-            print(f"{rec.version_code}: {rec.status}")
+        decrypted_path = decrypt_firmware(version)
+        print(f"Decrypted: {decrypted_path}")
+
+    Complete workflow::
+
+        from download import download_and_decrypt
+
+        firmware, decrypted = download_and_decrypt(
+            "SM-A146P", "EUX", "352976245060954"
+        )
+        print(f"Version: {firmware.version_code}")
+        print(f"File: {decrypted}")
+
+    Query repository::
+
+        from download import find_firmware, list_firmware
 
         # Find specific version
-        rec = find_download("SM-G998B", "EUX", "A146PXXS6CXK3/...")
-        if rec:
-            print(f"Found at: {rec.path}")
+        fw = find_firmware("A146PXXS6CXK3/...")
+        if fw:
+            print(f"Encrypted: {fw.encrypted_file_path}")
+            print(f"Decrypted: {fw.decrypted_file_path}")
+
+        # List all firmware
+        for fw in list_firmware(limit=10):
+            print(f"{fw.version_code}: {fw.filename}")
 
     Database management::
 
         from download import init_db, is_healthy, repair_db
 
-        # Initialize schema
-        init_db()
-
-        # Check health and repair if needed
+        init_db()  # Initialize schema
         if not is_healthy():
             repair_db()
+
+Configuration:
+    Set environment variables to customize paths::
+
+        export FIRM_DATA_DIR="/path/to/data"
+        export FIRM_DECRYPT_DIR="/path/to/decrypted"
 """
 
 from .db import get_db_path, init_db, is_healthy, repair_db
-from .repository import DownloadRecord, find_download, list_downloads
-from .service import download_firmware
+from .firmware_repository import FirmwareRecord, find_firmware, list_firmware, update_decrypted_path
+from .service import (
+    check_firmware,
+    decrypt_firmware,
+    download_and_decrypt,
+    get_or_download_firmware,
+)

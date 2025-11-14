@@ -90,7 +90,6 @@ def get_v4_key(
     try:
         fwver = resp.find("./FUSBody/Results/LATEST_FW_VERSION/Data").text  # type: ignore
         logicval = resp.find("./FUSBody/Put/LOGIC_VALUE_FACTORY/Data").text  # type: ignore
-        print(f"Obtained logic value: {logicval} for FW version: {fwver}")
     except Exception as exc:
         raise InformError("Could not obtain decryption key; check model/region/device_id.") from exc
     return get_v4_key_from_logic(fwver, logicval)  # type: ignore

@@ -67,32 +67,10 @@ def _apply_pragmas(conn: sqlite3.Connection) -> None:
     cur.close()
 
 
-# --- Init schéma --- #
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS downloads (
-  id               INTEGER PRIMARY KEY,
-  model            TEXT NOT NULL,
-  csc              TEXT NOT NULL,
-  version_code     TEXT NOT NULL,              -- ver1/ver2/ver3/ver4
-  encoded_filename TEXT NOT NULL,
-  size_bytes       INTEGER,
-  status           TEXT NOT NULL DEFAULT 'done',    -- done, downloading, decrypting, error
-  path             TEXT,                       -- chemin absolu du fichier téléchargé/décrypté
-  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(model, csc, version_code)
-);
+# --- Schema SQL --- #
+from .sql import FIRMWARE_SCHEMA, IMEI_LOG_SCHEMA
 
-CREATE INDEX IF NOT EXISTS idx_downloads_model_csc ON downloads(model, csc);
-
--- Mise à jour automatique du timestamp
-CREATE TRIGGER IF NOT EXISTS trg_downloads_updated_at
-AFTER UPDATE ON downloads
-FOR EACH ROW
-BEGIN
-  UPDATE downloads SET updated_at = datetime('now') WHERE id = OLD.id;
-END;
-"""
+SCHEMA_SQL = FIRMWARE_SCHEMA + "\n\n" + IMEI_LOG_SCHEMA
 
 
 def init_db() -> None:

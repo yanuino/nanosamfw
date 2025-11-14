@@ -20,17 +20,20 @@ class Paths:
     """Configuration paths for download operations.
 
     This dataclass holds all filesystem paths used by the download module,
-    including the data directory, database path, and downloads directory.
+    including the data directory, database path, firmware repository, and
+    decrypted firmware output directory.
 
     Attributes:
         data_dir: Root directory for application data storage.
         db_path: Path to the SQLite database file.
-        downloads_dir: Directory where firmware files are downloaded.
+        firmware_dir: Directory where encrypted firmware files (.enc4) are stored.
+        decrypted_dir: Directory where decrypted firmware files are stored.
     """
 
     data_dir: Path
     db_path: Path
-    downloads_dir: Path
+    firmware_dir: Path
+    decrypted_dir: Path
 
 
 def _resolve_paths() -> Paths:
@@ -50,7 +53,8 @@ def _resolve_paths() -> Paths:
     return Paths(
         data_dir=data_root,
         db_path=data_root / "firmware.db",
-        downloads_dir=data_root / "downloads",
+        firmware_dir=data_root / "firmware",
+        decrypted_dir=Path(os.environ.get("FIRM_DECRYPT_DIR", str(data_root / "decrypted"))),
     )
 
 

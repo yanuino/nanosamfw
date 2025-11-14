@@ -1,222 +1,286 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2025 Vladislav Tislenko (keklick1337)
 # Copyright (c) 2025 Yannick Locque (yanuino)
 
-"""Firmware download service.
+"""Firmware download and management service.
 
-This module provides high-level firmware download functionality including
-version resolution, FUS protocol handling, file download with resume support,
-and optional decryption.
+This module provides high-level firmware management functionality including
+FOTA version checking, firmware download with repository management, and
+decryption services.
 """
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 from fus.client import FUSClient
-from fus.decrypt import decrypt_file, get_v4_key
+from fus.decrypt import decrypt_file, get_v4_key_from_logic
 from fus.errors import DownloadError
 from fus.firmware import get_latest_version, normalize_vercode
 from fus.messages import build_binary_inform, build_binary_init
 from fus.responses import parse_inform
 
 from .config import PATHS
-from .repository import DownloadRecord, upsert_download
+from .firmware_repository import FirmwareRecord, find_firmware, upsert_firmware
+from .imei_repository import add_imei_event
 
 
-def _safe_dir(*parts: str) -> Path:
-    """Create a sanitized subdirectory under the downloads directory.
+def check_firmware(model: str, csc: str, device_id: str) -> str:
+    """Check latest available firmware version via FOTA.
 
-    Constructs a safe directory path by replacing path separators with underscores
-    and creating the directory if it doesn't exist.
-
-    Args:
-        *parts: Variable number of path components to join.
-
-    Returns:
-        Path: Absolute path to the created directory.
-    """
-    rel = Path(*[p.replace("/", "_") for p in parts])
-    final = PATHS.downloads_dir / rel
-    final.mkdir(parents=True, exist_ok=True)
-    return final
-
-
-def _extract_filename_and_size(inform_root: ET.Element) -> Tuple[str, int]:
-    """Extract filename and size from FUS inform response.
-
-    Args:
-        inform_root: Parsed XML root element from the inform response.
-
-    Returns:
-        Tuple of (filename, size_bytes).
-
-    Raises:
-        InformError: If the inform response status is not 200 or required fields are missing.
-    """
-    info = parse_inform(inform_root)
-    return info.filename, info.size_bytes
-
-
-def _download_to_file(
-    client: FUSClient,
-    filename: str,
-    out_path: Path,
-    *,
-    expected_size: Optional[int] = None,
-    resume: bool = True,
-    chunk_size: int = 1024 * 1024,
-    progress_cb: Optional[Callable[[int, Optional[int]], None]] = None,
-) -> Path:
-    """Download firmware file to disk with resume support.
-
-    Downloads a firmware file via NF_DownloadBinaryForMass.do endpoint with the
-    following features:
-    - Resume support using HTTP Range headers if a .part file exists
-    - Atomic rename from .part to final filename on completion
-    - Size verification if expected_size is provided
-    - Progress callback support
-
-    Args:
-        client: FUSClient instance with valid authorization.
-        filename: Firmware filename to download.
-        out_path: Destination path for the downloaded file.
-        expected_size: Optional expected file size in bytes for verification.
-        resume: If True, resume from existing .part file if present.
-        chunk_size: Download chunk size in bytes.
-        progress_cb: Optional callback function(bytes_written, expected_size).
-
-    Returns:
-        Path: Absolute path to the downloaded file.
-
-    Raises:
-        DownloadError: If downloaded size doesn't match expected_size.
-    """
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = out_path.with_suffix(out_path.suffix + ".part")
-
-    start = 0
-    if resume and tmp_path.exists():
-        start = tmp_path.stat().st_size
-
-    resp = client.stream(filename, start=start)
-
-    mode = "ab" if start > 0 else "wb"
-    written = start
-    with open(tmp_path, mode) as f:
-        for chunk in resp.iter_content(chunk_size=chunk_size):
-            if not chunk:
-                continue
-            f.write(chunk)
-            written += len(chunk)
-            if progress_cb:
-                progress_cb(written, expected_size)
-
-    if expected_size is not None and written != expected_size:
-        raise DownloadError(f"Taille inattendue: {written} != {expected_size}")
-
-    tmp_path.replace(out_path)
-    return out_path
-
-
-def download_firmware(
-    *,
-    model: str,
-    csc: str,
-    device_id: str,
-    version: Optional[str] = None,
-    decrypt: bool = True,
-    resume: bool = True,
-    progress_cb: Optional[Callable[[int, Optional[int]], None]] = None,
-) -> DownloadRecord:
-    """Download and optionally decrypt firmware, persisting metadata to database.
-
-    This is the main high-level API for firmware downloads. The process follows these steps:
-
-    1. Version resolution (if not provided) via FOTA version.xml
-    2. INFORM request to get filename and size
-    3. INIT request with LOGIC_CHECK computed from filename
-    4. Download binary with HTTP Range support for resume
-    5. (Optional) Decrypt ENC4 to ZIP format
-    6. Persist metadata to database via upsert
+    Queries Samsung FOTA servers for the latest firmware version and logs
+    the request to imei_log database.
 
     Args:
         model: Device model identifier (e.g., SM-G998B).
         csc: Country Specific Code.
         device_id: Device IMEI or serial number.
-        version: Optional firmware version (4-part format). If None, latest version is fetched.
-        decrypt: If True, decrypt the downloaded file after download.
-        resume: If True, resume from partial download if .part file exists.
-        progress_cb: Optional callback function(bytes_processed, expected_size) for progress tracking.
 
     Returns:
-        DownloadRecord: Database record containing download metadata and file path.
+        Normalized firmware version string (4-part format: AAA/BBB/CCC/DDD).
 
     Raises:
-        FUSError: If version lookup fails or FUS protocol errors occur.
-        DownloadError: If download fails or size verification fails.
+        FUSError: If version lookup fails.
 
-    Note:
-        The output directory is organized as downloads/model/csc/ with path separators
-        sanitized to underscores.
+    Example:
+        version = check_firmware("SM-A146P", "EUX", "352976245060954")
+        print(f"Latest: {version}")
     """
-    # 1) Version (4-part)
-    if not version:
-        version = get_latest_version(model, csc)
+    version = get_latest_version(model, csc)
     version_norm = normalize_vercode(version)
 
-    # Output directory (by model/CSC)
-    out_dir = _safe_dir(model, csc)
-
-    # 2) INFORM
-    client = FUSClient()
-    inform_payload = build_binary_inform(version_norm, model, csc, device_id, client.nonce)
-    inform_root = client.inform(inform_payload)
-
-    filename, expected_size = _extract_filename_and_size(inform_root)
-
-    # 3) INIT (LOGIC_CHECK computed from filename - last 16 chars of base-name)
-    init_payload = build_binary_init(filename, client.nonce)
-    client.init(init_payload)
-
-    # 4) DOWNLOAD binary enc4 file (encoded_filename)
-    enc_path = out_dir / filename
-    enc_final = _download_to_file(
-        client=client,
-        filename=filename,
-        out_path=enc_path,
-        expected_size=expected_size,
-        resume=resume,
-        progress_cb=progress_cb,
-    )
-
-    # 5) (Optional) DECRYPT ENC4 -> ZIP
-    dec_path: Optional[Path] = None
-    if decrypt:
-        key = get_v4_key(version_norm, model, csc, device_id, client)
-        dec_path = enc_final.with_suffix("")  # Remove .enc4 -> .zip (or actual suffix)
-        decrypt_file(
-            str(enc_final),
-            str(dec_path),
-            key=key,  # type: ignore
-            progress_cb=progress_cb,
-        )
-
-    # 6) UPSERT to database
-    size_bytes = enc_final.stat().st_size if enc_final.exists() else None
-    preferred_path = dec_path if dec_path else enc_final
-
-    rec = DownloadRecord(
+    # Log FOTA check to database
+    add_imei_event(
+        imei=device_id,
         model=model,
         csc=csc,
         version_code=version_norm,
-        encoded_filename=filename,
-        size_bytes=size_bytes,
-        status="done",
-        path=str(preferred_path.resolve()),
+        status_fus="ok",
+        status_upgrade="unknown",
     )
-    upsert_download(rec)
+
+    return version_norm
+
+
+def get_or_download_firmware(
+    version_code: str,
+    model: str,
+    csc: str,
+    device_id: str,
+    *,
+    resume: bool = True,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
+) -> FirmwareRecord:
+    """Get firmware from repository or download if not present.
+
+    Checks if the firmware already exists in the repository. If not, downloads
+    it from Samsung FUS servers and stores metadata in the database.
+
+    Args:
+        version_code: Firmware version identifier (4-part format).
+        model: Device model identifier.
+        csc: Country Specific Code.
+        device_id: Device IMEI or serial number.
+        resume: If True, resume from partial download if .part file exists.
+        progress_cb: Optional callback function(bytes_downloaded, total_bytes).
+
+    Returns:
+        FirmwareRecord: Repository record with encrypted file path and metadata.
+
+    Raises:
+        InformError: If FUS inform request fails.
+        DownloadError: If download fails or size verification fails.
+
+    Example:
+        firmware = get_or_download_firmware(
+            "A146PXXS6CXK3/A146POXM6CXK3/...",
+            "SM-A146P",
+            "EUX",
+            "352976245060954"
+        )
+        print(f"Encrypted file: {firmware.encrypted_file_path}")
+    """
+    # Check if already in repository
+    existing = find_firmware(version_code)
+    if existing and Path(existing.encrypted_file_path).exists():
+        return existing
+
+    # Download from FUS
+    version_norm = normalize_vercode(version_code)
+    client = FUSClient()
+
+    # 1. INFORM - get firmware metadata
+    inform_payload = build_binary_inform(version_norm, model, csc, device_id, client.nonce)
+    inform_root = client.inform(inform_payload)
+    info = parse_inform(inform_root)
+
+    # 2. INIT - authorize download
+    init_payload = build_binary_init(info.filename, client.nonce)
+    client.init(init_payload)
+
+    # 3. DOWNLOAD - stream to disk
+    PATHS.firmware_dir.mkdir(parents=True, exist_ok=True)
+    enc_path = PATHS.firmware_dir / info.filename
+    part_path = enc_path.with_suffix(enc_path.suffix + ".part")
+
+    start = part_path.stat().st_size if (resume and part_path.exists()) else 0
+    remote = info.path + info.filename
+    resp = client.stream(remote, start=start)
+
+    mode = "ab" if start > 0 else "wb"
+    written = start
+    with open(part_path, mode) as f:
+        for chunk in resp.iter_content(chunk_size=1024 * 1024):
+            if not chunk:
+                continue
+            f.write(chunk)
+            written += len(chunk)
+            if progress_cb:
+                progress_cb(written, info.size_bytes)
+
+    if written != info.size_bytes:
+        raise DownloadError(f"Size mismatch: got {written}, expected {info.size_bytes}")
+
+    # Atomic finalize
+    part_path.replace(enc_path)
+
+    # 4. PERSIST to repository
+    rec = FirmwareRecord(
+        version_code=version_norm,
+        filename=info.filename,
+        path=info.path,
+        size_bytes=info.size_bytes,
+        logic_value_factory=info.logic_value_factory,
+        latest_fw_version=info.latest_fw_version,
+        encrypted_file_path=str(enc_path.resolve()),
+        decrypted_file_path=None,
+    )
+    upsert_firmware(rec)
+
+    # Log download to IMEI log
+    add_imei_event(
+        imei=device_id,
+        model=model,
+        csc=csc,
+        version_code=version_norm,
+        status_fus="ok",
+        status_upgrade="ok",
+    )
+
     return rec
+
+
+def decrypt_firmware(
+    version_code: str,
+    output_path: Optional[str] = None,
+    *,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
+) -> str:
+    """Decrypt firmware from repository.
+
+    Decrypts a firmware file that exists in the repository. The decrypted
+    file is saved to the configured decrypted directory or a custom path.
+
+    Args:
+        version_code: Firmware version identifier to decrypt.
+        output_path: Optional custom output path. If None, uses
+            PATHS.decrypted_dir/<filename_without_enc4>.
+        progress_cb: Optional callback function(bytes_processed, total_bytes).
+
+    Returns:
+        Absolute path to the decrypted file.
+
+    Raises:
+        ValueError: If firmware not found in repository.
+        FileNotFoundError: If encrypted file doesn't exist on disk.
+        DecryptError: If decryption fails.
+
+    Example:
+        decrypted = decrypt_firmware("A146PXXS6CXK3/...")
+        print(f"Decrypted to: {decrypted}")
+    """
+    # Get firmware from repository
+    firmware = find_firmware(version_code)
+    if not firmware:
+        raise ValueError(f"Firmware {version_code} not found in repository")
+
+    enc_path = Path(firmware.encrypted_file_path)
+    if not enc_path.exists():
+        raise FileNotFoundError(f"Encrypted file not found: {enc_path}")
+
+    # Determine output path
+    if output_path:
+        dec_path = Path(output_path)
+    else:
+        PATHS.decrypted_dir.mkdir(parents=True, exist_ok=True)
+        dec_path = PATHS.decrypted_dir / enc_path.stem
+
+    # Decrypt using logic value from repository
+    key = get_v4_key_from_logic(firmware.latest_fw_version, firmware.logic_value_factory)
+    decrypt_file(
+        str(enc_path),
+        str(dec_path),
+        key=key,
+        progress_cb=progress_cb,
+    )
+
+    # Update repository with decrypted path
+    from .firmware_repository import update_decrypted_path
+
+    update_decrypted_path(version_code, str(dec_path.resolve()))
+
+    return str(dec_path.resolve())
+
+
+def download_and_decrypt(
+    model: str,
+    csc: str,
+    device_id: str,
+    version: Optional[str] = None,
+    *,
+    output_path: Optional[str] = None,
+    resume: bool = True,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
+) -> tuple[FirmwareRecord, str]:
+    """Complete workflow: check FOTA, download, and decrypt firmware.
+
+    Convenience function that performs the full workflow:
+    1. Check latest version via FOTA (if version not specified)
+    2. Download firmware to repository (if not already present)
+    3. Decrypt firmware to output directory
+
+    Args:
+        model: Device model identifier.
+        csc: Country Specific Code.
+        device_id: Device IMEI or serial number.
+        version: Optional specific version to download. If None, fetches latest.
+        output_path: Optional custom decryption output path.
+        resume: If True, resume partial downloads.
+        progress_cb: Optional progress callback for download and decrypt.
+
+    Returns:
+        Tuple of (FirmwareRecord, decrypted_file_path).
+
+    Example:
+        firmware, decrypted = download_and_decrypt(
+            "SM-A146P", "EUX", "352976245060954",
+            decrypt=True
+        )
+        print(f"Version: {firmware.version_code}")
+        print(f"Decrypted: {decrypted}")
+    """
+    # 1. Resolve version
+    if not version:
+        version = check_firmware(model, csc, device_id)
+    else:
+        version = normalize_vercode(version)
+
+    # 2. Download to repository
+    firmware = get_or_download_firmware(
+        version, model, csc, device_id, resume=resume, progress_cb=progress_cb
+    )
+
+    # 3. Decrypt
+    decrypted_path = decrypt_firmware(version, output_path, progress_cb=progress_cb)
+
+    return firmware, decrypted_path
