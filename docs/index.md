@@ -31,27 +31,103 @@ This package offers a clean, well-documented Python API for:
 - Automatic key derivation from FUS responses
 - Streaming decryption with progress tracking
 
-### 💾 Database Integration
-- SQLite-based download history
+### 💾 Firmware Repository
+- Centralized firmware storage (no duplication per model/CSC)
+- Cached InformInfo metadata for efficient operations
 - IMEI event logging with status tracking
 - Repository pattern for clean data access
 
+## Architecture
+
+nanosamfw uses a three-layer architecture for clean separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Service Layer                      │
+├─────────────────────────────────────────────────────┤
+│ check_firmware()         │ FOTA query + IMEI log    │
+│ get_or_download_firmware()│ Smart download          │
+│ decrypt_firmware()       │ Repository → decrypted   │
+│ download_and_decrypt()   │ Full workflow           │
+└─────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────┐
+│                Repository Layer                      │
+├─────────────────────────────────────────────────────┤
+│ firmware_repository.py   │ FirmwareRecord CRUD      │
+│ imei_repository.py       │ IMEIEvent logging        │
+└─────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────┐
+│                  Database Layer                      │
+├─────────────────────────────────────────────────────┤
+│ firmware.db              │                          │
+│  ├─ firmware (repository)│ version → file + metadata│
+│  └─ imei_log (tracking)  │ requests + operations   │
+└─────────────────────────────────────────────────────┘
+```
+
+**Key Design Principles:**
+
+- **Firmware Repository**: Centralized storage - one record per firmware version (no model/CSC duplication)
+- **Smart Downloads**: Checks repository before downloading from FUS servers
+- **Cached Metadata**: Stores InformInfo data including logic values for efficient decryption
+- **Separation of Concerns**: FOTA check, download, and decrypt are independent operations
+- **Request Tracking**: IMEI log captures all queries separately from firmware repository
+
 ## Quick Start
 
-```python
-from download.service import download_firmware
+### Complete Workflow
 
-# Download latest firmware for a device
-record = download_firmware(
+```python
+from download import download_and_decrypt
+
+# Download and decrypt in one call
+firmware, decrypted = download_and_decrypt(
     model="SM-G998B",
     csc="EUX",
     device_id="352976245060954",
-    decrypt=True,  # Automatically decrypt after download
-    resume=True,   # Resume if interrupted
+    resume=True,
 )
 
-print(f"Downloaded to: {record.path}")
-print(f"Version: {record.version_code}")
+print(f"Version: {firmware.version_code}")
+print(f"Decrypted file: {decrypted}")
+```
+
+### Separate Operations
+
+```python
+from download import check_firmware, get_or_download_firmware, decrypt_firmware
+
+# 1. Check FOTA for latest version
+version = check_firmware("SM-G998B", "EUX", "352976245060954")
+print(f"Latest: {version}")
+
+# 2. Download to repository (if not already present)
+firmware = get_or_download_firmware(version, "SM-G998B", "EUX", "352976245060954")
+print(f"Encrypted file: {firmware.encrypted_file_path}")
+
+# 3. Decrypt from repository (can be deferred!)
+decrypted = decrypt_firmware(version)
+print(f"Decrypted file: {decrypted}")
+```
+
+### Repository Queries
+
+```python
+from download import find_firmware, list_firmware
+
+# Find specific version
+fw = find_firmware("G998BXXU1ATCT/...")
+if fw:
+    print(f"Logic value: {fw.logic_value_factory}")
+    print(f"Size: {fw.size_bytes} bytes")
+
+# List all firmware in repository
+for fw in list_firmware(limit=10):
+    print(f"{fw.version_code}: {fw.filename}")
 ```
 
 ## Requirements
@@ -79,8 +155,10 @@ pip install -r requirements.txt
   - Device ID validation (IMEI/Serial)
 
 - **[download](api/download.service.md)** - High-level download service
-  - Firmware download orchestration
-  - Database repositories for tracking
+  - Firmware repository management
+  - FOTA version checking with IMEI logging
+  - Smart download (skips if already in repository)
+  - On-demand decryption with cached logic values
   - Configuration and path management
 
 ## Documentation Sections

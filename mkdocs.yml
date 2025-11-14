@@ -73,7 +73,7 @@ nav:
     - Errors: api/fus.errors.md
   - Download API:
     - Service: api/download.service.md
-    - Repository: api/download.repository.md
+    - Firmware Repository: api/download.firmware_repository.md
     - Configuration: api/download.config.md
   - Database:
     - Schema: database/schema.md

@@ -1,42 +1,46 @@
 # Database Schema
 
-This document describes the database schema used by nanosamfw for tracking firmware downloads and IMEI operations.
+This document describes the database schema used by nanosamfw for tracking firmware in the repository and IMEI operations.
 
 ## Overview
 
 The application uses SQLite for local data persistence with two main tables:
 
-- **downloads** - Tracks firmware download metadata and status
+- **firmware** - Firmware repository with metadata from FUS inform responses
 - **imei_log** - Logs IMEI-based firmware queries and upgrade operations
 
 ## Tables
 
-### downloads
+### firmware
 
-Stores metadata about firmware downloads including model, CSC, version, and download status.
+Firmware repository storing one record per firmware version with all metadata from Samsung FUS servers.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | INTEGER | PRIMARY KEY | Auto-incrementing unique identifier |
-| `model` | TEXT | NOT NULL | Device model identifier (e.g., SM-G998B) |
-| `csc` | TEXT | NOT NULL | Country Specific Code |
-| `version_code` | TEXT | NOT NULL | Firmware version identifier |
-| `encoded_filename` | TEXT | NOT NULL | Encoded filename from FUS |
-| `size_bytes` | INTEGER | - | File size in bytes |
-| `status` | TEXT | NOT NULL, DEFAULT 'done' | Download status |
-| `path` | TEXT | - | Local filesystem path to downloaded file |
+| `version_code` | TEXT | NOT NULL, UNIQUE | Firmware version identifier (4-part format: AAA/BBB/CCC/DDD) |
+| `filename` | TEXT | NOT NULL | Binary firmware filename from FUS server |
+| `path` | TEXT | NOT NULL | Server model path from FUS inform response |
+| `size_bytes` | INTEGER | NOT NULL | File size in bytes |
+| `logic_value_factory` | TEXT | NOT NULL | Logic value for ENC4 decryption key derivation |
+| `latest_fw_version` | TEXT | NOT NULL | Latest firmware version from inform response |
+| `encrypted_file_path` | TEXT | NOT NULL | Absolute path to encrypted (.enc4) file on disk |
+| `decrypted_file_path` | TEXT | - | Absolute path to decrypted file, or NULL if not decrypted |
 | `created_at` | TEXT | NOT NULL, DEFAULT (now) | ISO 8601 timestamp of creation |
 | `updated_at` | TEXT | NOT NULL, DEFAULT (now) | ISO 8601 timestamp of last update |
 
-**Unique Constraint:** `(model, csc, version_code)`
+**Unique Constraint:** `version_code` (one record per firmware version)
+
+**Check Constraint:** `version_code` must have exactly 3 slashes (4-part format)
 
 #### Indexes
 
-- `idx_downloads_model_csc` - Composite index on `(model, csc)` for efficient lookups
+- `idx_firmware_version` - Index on `version_code` for fast lookups
+- `idx_firmware_filename` - Index on `filename` for search by filename
 
 #### Triggers
 
-- `trg_downloads_updated_at` - Automatically updates `updated_at` timestamp on row updates
+- `trg_firmware_updated_at` - Automatically updates `updated_at` timestamp on row updates
 
 ---
 
@@ -82,6 +86,7 @@ The schema definitions are maintained in the following source files:
 
 The database is managed through the repository pattern:
 
-- [download.repository](../api/download.repository.md) - Main download operations
+- [download.firmware_repository](../api/download.firmware_repository.md) - Firmware repository operations
 - [download.imei_repository](../api/download.imei_repository.md) - IMEI log operations
+- [download.service](../api/download.service.md) - High-level service functions
 - [download.db](../api/download.db.md) - Database connection management
