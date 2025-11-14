@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://nanosamfw.github.io/nanosamfw/database/schema/">
       
       
-        <link rel="prev" href="../../api/download.config/">
+        <link rel="prev" href="../../api/device.errors/">
       
       
         <link rel="next" href="../../api/download.imei_repository/">
@@ -499,12 +499,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/download.repository/" class="md-nav__link">
+      <a href="../../api/download.firmware_repository/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Repository
+    Firmware Repository
     
   </span>
   
@@ -528,6 +528,183 @@
   
   <span class="md-ellipsis">
     Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Device Detection
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Device Detection
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/device/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/device.detector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Detector
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/device.reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Reader
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/device.models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/device.errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Errors
     
   </span>
   
@@ -573,10 +750,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -589,8 +766,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             Database
           </label>
@@ -672,13 +849,13 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#downloads" class="md-nav__link">
+  <a href="#firmware" class="md-nav__link">
     <span class="md-ellipsis">
-      downloads
+      firmware
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="downloads">
+    <nav class="md-nav" aria-label="firmware">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -810,16 +987,16 @@
 
 
 <h1 id="database-schema">Database Schema<a class="headerlink" href="#database-schema" title="Permanent link">&para;</a></h1>
-<p>This document describes the database schema used by nanosamfw for tracking firmware downloads and IMEI operations.</p>
+<p>This document describes the database schema used by nanosamfw for tracking firmware in the repository and IMEI operations.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The application uses SQLite for local data persistence with two main tables:</p>
 <ul>
-<li><strong>downloads</strong> - Tracks firmware download metadata and status</li>
+<li><strong>firmware</strong> - Firmware repository with metadata from FUS inform responses</li>
 <li><strong>imei_log</strong> - Logs IMEI-based firmware queries and upgrade operations</li>
 </ul>
 <h2 id="tables">Tables<a class="headerlink" href="#tables" title="Permanent link">&para;</a></h2>
-<h3 id="downloads">downloads<a class="headerlink" href="#downloads" title="Permanent link">&para;</a></h3>
-<p>Stores metadata about firmware downloads including model, CSC, version, and download status.</p>
+<h3 id="firmware">firmware<a class="headerlink" href="#firmware" title="Permanent link">&para;</a></h3>
+<p>Firmware repository storing one record per firmware version with all metadata from Samsung FUS servers.</p>
 <table>
 <thead>
 <tr>
@@ -837,46 +1014,52 @@
 <td>Auto-incrementing unique identifier</td>
 </tr>
 <tr>
-<td><code>model</code></td>
-<td>TEXT</td>
-<td>NOT NULL</td>
-<td>Device model identifier (e.g., SM-G998B)</td>
-</tr>
-<tr>
-<td><code>csc</code></td>
-<td>TEXT</td>
-<td>NOT NULL</td>
-<td>Country Specific Code</td>
-</tr>
-<tr>
 <td><code>version_code</code></td>
 <td>TEXT</td>
-<td>NOT NULL</td>
-<td>Firmware version identifier</td>
+<td>NOT NULL, UNIQUE</td>
+<td>Firmware version identifier (4-part format: AAA/BBB/CCC/DDD)</td>
 </tr>
 <tr>
-<td><code>encoded_filename</code></td>
+<td><code>filename</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>Encoded filename from FUS</td>
-</tr>
-<tr>
-<td><code>size_bytes</code></td>
-<td>INTEGER</td>
-<td>-</td>
-<td>File size in bytes</td>
-</tr>
-<tr>
-<td><code>status</code></td>
-<td>TEXT</td>
-<td>NOT NULL, DEFAULT 'done'</td>
-<td>Download status</td>
+<td>Binary firmware filename from FUS server</td>
 </tr>
 <tr>
 <td><code>path</code></td>
 <td>TEXT</td>
+<td>NOT NULL</td>
+<td>Server model path from FUS inform response</td>
+</tr>
+<tr>
+<td><code>size_bytes</code></td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>File size in bytes</td>
+</tr>
+<tr>
+<td><code>logic_value_factory</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Logic value for ENC4 decryption key derivation</td>
+</tr>
+<tr>
+<td><code>latest_fw_version</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Latest firmware version from inform response</td>
+</tr>
+<tr>
+<td><code>encrypted_file_path</code></td>
+<td>TEXT</td>
+<td>NOT NULL</td>
+<td>Absolute path to encrypted (.enc4) file on disk</td>
+</tr>
+<tr>
+<td><code>decrypted_file_path</code></td>
+<td>TEXT</td>
 <td>-</td>
-<td>Local filesystem path to downloaded file</td>
+<td>Absolute path to decrypted file, or NULL if not decrypted</td>
 </tr>
 <tr>
 <td><code>created_at</code></td>
@@ -892,14 +1075,16 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Unique Constraint:</strong> <code>(model, csc, version_code)</code></p>
+<p><strong>Unique Constraint:</strong> <code>version_code</code> (one record per firmware version)</p>
+<p><strong>Check Constraint:</strong> <code>version_code</code> must have exactly 3 slashes (4-part format)</p>
 <h4 id="indexes">Indexes<a class="headerlink" href="#indexes" title="Permanent link">&para;</a></h4>
 <ul>
-<li><code>idx_downloads_model_csc</code> - Composite index on <code>(model, csc)</code> for efficient lookups</li>
+<li><code>idx_firmware_version</code> - Index on <code>version_code</code> for fast lookups</li>
+<li><code>idx_firmware_filename</code> - Index on <code>filename</code> for search by filename</li>
 </ul>
 <h4 id="triggers">Triggers<a class="headerlink" href="#triggers" title="Permanent link">&para;</a></h4>
 <ul>
-<li><code>trg_downloads_updated_at</code> - Automatically updates <code>updated_at</code> timestamp on row updates</li>
+<li><code>trg_firmware_updated_at</code> - Automatically updates <code>updated_at</code> timestamp on row updates</li>
 </ul>
 <hr />
 <h3 id="imei_log">imei_log<a class="headerlink" href="#imei_log" title="Permanent link">&para;</a></h3>
@@ -994,8 +1179,9 @@
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
 <p>The database is managed through the repository pattern:</p>
 <ul>
-<li><a href="../../api/download.repository/">download.repository</a> - Main download operations</li>
+<li><a href="../../api/download.firmware_repository/">download.firmware_repository</a> - Firmware repository operations</li>
 <li><a href="../../api/download.imei_repository/">download.imei_repository</a> - IMEI log operations</li>
+<li><a href="../../api/download.service/">download.service</a> - High-level service functions</li>
 <li><a href="../../api/download.db/">download.db</a> - Database connection management</li>
 </ul>
 

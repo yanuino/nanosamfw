@@ -495,12 +495,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../download.repository/" class="md-nav__link">
+      <a href="../download.firmware_repository/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Repository
+    Firmware Repository
     
   </span>
   
@@ -554,6 +554,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -575,7 +581,7 @@
   
   
   <span class="md-ellipsis">
-    Database
+    Device Detection
     
   </span>
   
@@ -585,6 +591,177 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Device Detection
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../device/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../device.detector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Detector
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../device.reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Reader
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../device.models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../device.errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Errors
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Database
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             Database
           </label>
@@ -678,12 +855,10 @@
     <div class="doc doc-contents first">
 
         <p>FUS inform response parsing helpers.</p>
-<p>Provides a small dataclass and utilities to extract firmware-related metadata
-(filename, path, size) and server-provided values from a FUS BinaryInform XML
-response.</p>
+<p>Provides a dataclass and parser to extract firmware-related metadata from a
+FUS BinaryInform XML response.</p>
 <p>Functions:
-- get_info_from_inform: extract server path, filename and size from an inform response.
-- parse_inform: build an InformInfo instance combining results and logic values.</p>
+- parse_inform: parse BinaryInform response into an InformInfo dataclass.</p>
 
 
 
@@ -723,7 +898,8 @@ response.</p>
 
 
         <p>FUS BinaryInform response data.</p>
-<p>Dataclass holding parsed metadata from a Samsung FUS BinaryInform XML response.</p>
+<p>Dataclass holding parsed metadata from a Samsung FUS BinaryInform XML response.
+All fields are guaranteed to be present when status is 200.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -739,22 +915,22 @@ response.</p>
           <tr class="doc-section-item">
             <td><code><span title="fus.responses.InformInfo.latest_fw_version">latest_fw_version</span></code></td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Latest firmware version string, or None if not provided.</p>
+                <p>Latest firmware version string.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td><code><span title="fus.responses.InformInfo.logic_value_factory">logic_value_factory</span></code></td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Logic value for ENC4 decryption key derivation, or None.</p>
+                <p>Logic value for ENC4 decryption key derivation.</p>
               </div>
             </td>
           </tr>
@@ -772,22 +948,22 @@ response.</p>
           <tr class="doc-section-item">
             <td><code><span title="fus.responses.InformInfo.path">path</span></code></td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Server model path, or None if not provided.</p>
+                <p>Server model path.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td><code><span title="fus.responses.InformInfo.size_bytes">size_bytes</span></code></td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
+                  <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Firmware file size in bytes, or None if not provided.</p>
+                <p>Firmware file size in bytes.</p>
               </div>
             </td>
           </tr>
@@ -803,7 +979,10 @@ response.</p>
 
               <details class="quote">
                 <summary>Source code in <code>fus/responses.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-26">26</a></span>
+                <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-23">23</a></span>
+<span class="normal"><a href="#__codelineno-0-24">24</a></span>
+<span class="normal"><a href="#__codelineno-0-25">25</a></span>
+<span class="normal"><a href="#__codelineno-0-26">26</a></span>
 <span class="normal"><a href="#__codelineno-0-27">27</a></span>
 <span class="normal"><a href="#__codelineno-0-28">28</a></span>
 <span class="normal"><a href="#__codelineno-0-29">29</a></span>
@@ -819,27 +998,26 @@ response.</p>
 <span class="normal"><a href="#__codelineno-0-39">39</a></span>
 <span class="normal"><a href="#__codelineno-0-40">40</a></span>
 <span class="normal"><a href="#__codelineno-0-41">41</a></span>
-<span class="normal"><a href="#__codelineno-0-42">42</a></span>
-<span class="normal"><a href="#__codelineno-0-43">43</a></span>
-<span class="normal"><a href="#__codelineno-0-44">44</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-26" name="__codelineno-0-26"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="k">class</span><span class="w"> </span><span class="nc">InformInfo</span><span class="p">:</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;FUS BinaryInform response data.</span>
+<span class="normal"><a href="#__codelineno-0-42">42</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-23" name="__codelineno-0-23"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24"></a><span class="k">class</span><span class="w"> </span><span class="nc">InformInfo</span><span class="p">:</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;FUS BinaryInform response data.</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26"></a>
+<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="sd">    Dataclass holding parsed metadata from a Samsung FUS BinaryInform XML response.</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28"></a><span class="sd">    All fields are guaranteed to be present when status is 200.</span>
 <a id="__codelineno-0-29" name="__codelineno-0-29"></a>
-<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">    Dataclass holding parsed metadata from a Samsung FUS BinaryInform XML response.</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31"></a>
-<a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="sd">    Attributes:</span>
-<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">        latest_fw_version: Latest firmware version string, or None if not provided.</span>
-<a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="sd">        logic_value_factory: Logic value for ENC4 decryption key derivation, or None.</span>
-<a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">        filename: Binary firmware filename on the server.</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">        path: Server model path, or None if not provided.</span>
-<a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="sd">        size_bytes: Firmware file size in bytes, or None if not provided.</span>
-<a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-39" name="__codelineno-0-39"></a>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a>    <span class="n">latest_fw_version</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-<a id="__codelineno-0-41" name="__codelineno-0-41"></a>    <span class="n">logic_value_factory</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-<a id="__codelineno-0-42" name="__codelineno-0-42"></a>    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43"></a>    <span class="n">path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-44" name="__codelineno-0-44"></a>    <span class="n">size_bytes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">    Attributes:</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="sd">        latest_fw_version: Latest firmware version string.</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="sd">        logic_value_factory: Logic value for ENC4 decryption key derivation.</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">        filename: Binary firmware filename on the server.</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34"></a><span class="sd">        path: Server model path.</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">        size_bytes: Firmware file size in bytes.</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37"></a>
+<a id="__codelineno-0-38" name="__codelineno-0-38"></a>    <span class="n">latest_fw_version</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39"></a>    <span class="n">logic_value_factory</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a>    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41"></a>    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a>    <span class="n">size_bytes</span><span class="p">:</span> <span class="nb">int</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
@@ -864,158 +1042,6 @@ response.</p>
 
 </div>
 
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="fus.responses.get_info_from_inform" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">get_info_from_inform</span>
-
-
-<a href="#fus.responses.get_info_from_inform" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><span class="filename">Python</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_info_from_inform</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Extract download metadata from a BinaryInform XML response.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>root</code>
-            </td>
-            <td>
-                  <code><span title="xml.etree.ElementTree.Element">Element</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Parsed XML root element of the BinaryInform response.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <span title="str">str</span>, <span title="int">int</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>A tuple (filename, path, size_bytes).</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-<p><span class="doc-section-title">Raises:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="fus.errors.InformError">InformError</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>If the inform response status is not 200.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="AttributeError">AttributeError</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>If expected XML elements are missing or malformed.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-            <details class="quote">
-              <summary>Source code in <code>fus/responses.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-47">47</a></span>
-<span class="normal"><a href="#__codelineno-0-48">48</a></span>
-<span class="normal"><a href="#__codelineno-0-49">49</a></span>
-<span class="normal"><a href="#__codelineno-0-50">50</a></span>
-<span class="normal"><a href="#__codelineno-0-51">51</a></span>
-<span class="normal"><a href="#__codelineno-0-52">52</a></span>
-<span class="normal"><a href="#__codelineno-0-53">53</a></span>
-<span class="normal"><a href="#__codelineno-0-54">54</a></span>
-<span class="normal"><a href="#__codelineno-0-55">55</a></span>
-<span class="normal"><a href="#__codelineno-0-56">56</a></span>
-<span class="normal"><a href="#__codelineno-0-57">57</a></span>
-<span class="normal"><a href="#__codelineno-0-58">58</a></span>
-<span class="normal"><a href="#__codelineno-0-59">59</a></span>
-<span class="normal"><a href="#__codelineno-0-60">60</a></span>
-<span class="normal"><a href="#__codelineno-0-61">61</a></span>
-<span class="normal"><a href="#__codelineno-0-62">62</a></span>
-<span class="normal"><a href="#__codelineno-0-63">63</a></span>
-<span class="normal"><a href="#__codelineno-0-64">64</a></span>
-<span class="normal"><a href="#__codelineno-0-65">65</a></span>
-<span class="normal"><a href="#__codelineno-0-66">66</a></span>
-<span class="normal"><a href="#__codelineno-0-67">67</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_info_from_inform</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="sd">    Extract download metadata from a BinaryInform XML response.</span>
-<a id="__codelineno-0-50" name="__codelineno-0-50"></a>
-<a id="__codelineno-0-51" name="__codelineno-0-51"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">        root: Parsed XML root element of the BinaryInform response.</span>
-<a id="__codelineno-0-53" name="__codelineno-0-53"></a>
-<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a><span class="sd">        A tuple (filename, path, size_bytes).</span>
-<a id="__codelineno-0-56" name="__codelineno-0-56"></a>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="sd">        InformError: If the inform response status is not 200.</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a><span class="sd">        AttributeError: If expected XML elements are missing or malformed.</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-61" name="__codelineno-0-61"></a>    <span class="n">status</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Results/Status&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
-<a id="__codelineno-0-62" name="__codelineno-0-62"></a>    <span class="k">if</span> <span class="n">status</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
-<a id="__codelineno-0-63" name="__codelineno-0-63"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;DownloadBinaryInform returned </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="n">filename</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/BINARY_NAME/Data&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span>  <span class="c1"># type: ignore</span>
-<a id="__codelineno-0-65" name="__codelineno-0-65"></a>    <span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/BINARY_BYTE_SIZE/Data&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
-<a id="__codelineno-0-66" name="__codelineno-0-66"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/MODEL_PATH/Data&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span>  <span class="c1"># type: ignore</span>
-<a id="__codelineno-0-67" name="__codelineno-0-67"></a>    <span class="k">return</span> <span class="n">filename</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">size</span>  <span class="c1"># type: ignore</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-function">
 
@@ -1108,8 +1134,7 @@ response.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If get_info_from_inform detects a non-200 status or other
-         inform-related errors occur.</p>
+                <p>If the inform response status is not 200 or required fields are missing.</p>
               </div>
             </td>
           </tr>
@@ -1119,7 +1144,32 @@ response.</p>
 
             <details class="quote">
               <summary>Source code in <code>fus/responses.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-70">70</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#__codelineno-0-70">70</a></span>
 <span class="normal"><a href="#__codelineno-0-71">71</a></span>
 <span class="normal"><a href="#__codelineno-0-72">72</a></span>
 <span class="normal"><a href="#__codelineno-0-73">73</a></span>
@@ -1143,31 +1193,60 @@ response.</p>
 <span class="normal"><a href="#__codelineno-0-91">91</a></span>
 <span class="normal"><a href="#__codelineno-0-92">92</a></span>
 <span class="normal"><a href="#__codelineno-0-93">93</a></span>
-<span class="normal"><a href="#__codelineno-0-94">94</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_inform</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InformInfo</span><span class="p">:</span>
-<a id="__codelineno-0-71" name="__codelineno-0-71"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-72" name="__codelineno-0-72"></a><span class="sd">    Parse a BinaryInform XML response into an InformInfo structure.</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>
-<a id="__codelineno-0-74" name="__codelineno-0-74"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a><span class="sd">        root: Parsed XML root element of the BinaryInform response.</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>
-<a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="sd">        InformInfo: Dataclass containing latest firmware version, logic value,</span>
-<a id="__codelineno-0-79" name="__codelineno-0-79"></a><span class="sd">                    filename, path and size in bytes.</span>
+<span class="normal"><a href="#__codelineno-0-94">94</a></span>
+<span class="normal"><a href="#__codelineno-0-95">95</a></span>
+<span class="normal"><a href="#__codelineno-0-96">96</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_inform</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InformInfo</span><span class="p">:</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="sd">    Parse a BinaryInform XML response into an InformInfo structure.</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a><span class="sd">        root: Parsed XML root element of the BinaryInform response.</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a><span class="sd">        InformInfo: Dataclass containing latest firmware version, logic value,</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a><span class="sd">                    filename, path and size in bytes.</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a>
+<a id="__codelineno-0-56" name="__codelineno-0-56"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="sd">        InformError: If the inform response status is not 200 or required fields are missing.</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a>    <span class="n">status_elem</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Results/Status&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="k">if</span> <span class="n">status_elem</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">status_elem</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="s2">&quot;Missing Status field in inform response&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62"></a>
+<a id="__codelineno-0-63" name="__codelineno-0-63"></a>    <span class="n">status</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">status_elem</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="k">if</span> <span class="n">status</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;DownloadBinaryInform returned </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a>    <span class="c1"># Extract required fields - raise InformError if any are missing</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68"></a>    <span class="n">latest</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">findtext</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Results/LATEST_FW_VERSION/Data&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">latest</span><span class="p">:</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="s2">&quot;Missing LATEST_FW_VERSION in inform response&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-71" name="__codelineno-0-71"></a>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>    <span class="n">logic</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">findtext</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/LOGIC_VALUE_FACTORY/Data&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">logic</span><span class="p">:</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="s2">&quot;Missing LOGIC_VALUE_FACTORY in inform response&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a>    <span class="n">filename_elem</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/BINARY_NAME/Data&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-77" name="__codelineno-0-77"></a>    <span class="k">if</span> <span class="n">filename_elem</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">filename_elem</span><span class="o">.</span><span class="n">text</span><span class="p">:</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="s2">&quot;Missing BINARY_NAME in inform response&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="n">filename</span> <span class="o">=</span> <span class="n">filename_elem</span><span class="o">.</span><span class="n">text</span>
 <a id="__codelineno-0-80" name="__codelineno-0-80"></a>
-<a id="__codelineno-0-81" name="__codelineno-0-81"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="sd">        InformError: If get_info_from_inform detects a non-200 status or other</span>
-<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="sd">                     inform-related errors occur.</span>
-<a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a>    <span class="n">latest</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">findtext</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Results/LATEST_FW_VERSION/Data&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-86" name="__codelineno-0-86"></a>    <span class="n">logic</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">findtext</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/LOGIC_VALUE_FACTORY/Data&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a>    <span class="n">filename</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">size</span> <span class="o">=</span> <span class="n">get_info_from_inform</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-<a id="__codelineno-0-88" name="__codelineno-0-88"></a>    <span class="k">return</span> <span class="n">InformInfo</span><span class="p">(</span>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a>        <span class="n">latest_fw_version</span><span class="o">=</span><span class="n">latest</span><span class="p">,</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a>        <span class="n">logic_value_factory</span><span class="o">=</span><span class="n">logic</span><span class="p">,</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a>        <span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">,</span>
-<a id="__codelineno-0-92" name="__codelineno-0-92"></a>        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a>        <span class="n">size_bytes</span><span class="o">=</span><span class="n">size</span><span class="p">,</span>
-<a id="__codelineno-0-94" name="__codelineno-0-94"></a>    <span class="p">)</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a>    <span class="n">size_elem</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/BINARY_BYTE_SIZE/Data&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-82" name="__codelineno-0-82"></a>    <span class="k">if</span> <span class="n">size_elem</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">size_elem</span><span class="o">.</span><span class="n">text</span><span class="p">:</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="s2">&quot;Missing BINARY_BYTE_SIZE in inform response&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a>    <span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">size_elem</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">findtext</span><span class="p">(</span><span class="s2">&quot;./FUSBody/Put/MODEL_PATH/Data&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="p">:</span>
+<a id="__codelineno-0-88" name="__codelineno-0-88"></a>        <span class="k">raise</span> <span class="n">InformError</span><span class="p">(</span><span class="s2">&quot;Missing MODEL_PATH in inform response&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89"></a>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>    <span class="k">return</span> <span class="n">InformInfo</span><span class="p">(</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a>        <span class="n">latest_fw_version</span><span class="o">=</span><span class="n">latest</span><span class="p">,</span>
+<a id="__codelineno-0-92" name="__codelineno-0-92"></a>        <span class="n">logic_value_factory</span><span class="o">=</span><span class="n">logic</span><span class="p">,</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a>        <span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">,</span>
+<a id="__codelineno-0-94" name="__codelineno-0-94"></a>        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95"></a>        <span class="n">size_bytes</span><span class="o">=</span><span class="n">size</span><span class="p">,</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
