@@ -48,31 +48,31 @@ This package offers a clean, well-documented Python API for:
 nanosamfw uses a three-layer architecture for clean separation of concerns:
 
 ```
-┌─────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────┐
 │                   Service Layer                      │
-├─────────────────────────────────────────────────────┤
-│ check_firmware()         │ FOTA query + IMEI log    │
-│ get_or_download_firmware()│ Smart download          │
-│ decrypt_firmware()       │ Repository → decrypted   │
-│ download_and_decrypt()   │ Full workflow           │
-└─────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────┐
+├──────────────────────────────────────────────────────┤
+│ check_firmware()          │ FOTA query + IMEI log    │
+│ get_or_download_firmware()│ Smart download           │
+│ decrypt_firmware()        │ Repository → decrypted   │
+│ download_and_decrypt()    │ Full workflow            │
+└──────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────┐
 │                Repository Layer                      │
-├─────────────────────────────────────────────────────┤
-│ firmware_repository.py   │ FirmwareRecord CRUD      │
-│ imei_repository.py       │ IMEIEvent logging        │
-└─────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────┐
+├──────────────────────────────────────────────────────┤
+│ firmware_repository.py   │ FirmwareRecord CRUD       │
+│ imei_repository.py       │ IMEIEvent logging         │
+└──────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────┐
 │                  Database Layer                      │
-├─────────────────────────────────────────────────────┤
-│ firmware.db              │                          │
-│  ├─ firmware (repository)│ version → file + metadata│
-│  └─ imei_log (tracking)  │ requests + operations   │
-└─────────────────────────────────────────────────────┘
+├──────────────────────────────────────────────────────┤
+│ firmware.db              │                           │
+│  ├─ firmware (repository)│ version → file + metadata │
+│  └─ imei_log (tracking)  │ requests + operations     │
+└──────────────────────────────────────────────────────┘
 ```
 
 **Key Design Principles:**
