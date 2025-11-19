@@ -63,6 +63,12 @@ plugins:
             inherited_members: true
             filters: ["!^_"]
             heading_level: 2
+  - git-revision-date-localized:
+      type: timeago
+      timezone: Europe/Paris
+      locale: en
+      fallback_to_build_date: true
+
 nav:
   - Index: index.md
   - Core API:
