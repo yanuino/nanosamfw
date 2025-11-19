@@ -4,6 +4,7 @@ dependencies = [
     "requests>=2.32.5",
     "tqdm>=4.67.1",
     "pycryptodome>=3.23.0",
+    "pyserial>=3.5",
 ]
 
 [tool.black]
@@ -16,8 +17,8 @@ profile = "black"
 line_length = 100
 skip_gitignore = true
 combine_as_imports = true
-known_first_party = ["download", "fus"]
-src_paths = ["download", "fus"]
+known_first_party = ["device", "download", "fus"]
+src_paths = ["device", "download", "fus"]
 include_trailing_comma = true
 multi_line_output = 3
 

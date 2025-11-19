@@ -21,7 +21,12 @@ from fus.messages import build_binary_inform, build_binary_init
 from fus.responses import parse_inform
 
 from .config import PATHS
-from .firmware_repository import FirmwareRecord, find_firmware, upsert_firmware
+from .firmware_repository import (
+    FirmwareRecord,
+    find_firmware,
+    update_decrypted_path,
+    upsert_firmware,
+)
 from .imei_repository import add_imei_event
 
 
@@ -225,8 +230,6 @@ def decrypt_firmware(
     )
 
     # Update repository with decrypted path
-    from .firmware_repository import update_decrypted_path
-
     update_decrypted_path(version_code, str(dec_path.resolve()))
 
     return str(dec_path.resolve())

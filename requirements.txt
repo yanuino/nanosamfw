@@ -1,3 +1,6 @@
 pycryptodome
 requests
 tqdm
+
+# Device detection
+pyserial>=3.5

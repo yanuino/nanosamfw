@@ -14,6 +14,7 @@ import sqlite3
 from pathlib import Path
 
 from .config import PATHS
+from .sql import FIRMWARE_SCHEMA, IMEI_LOG_SCHEMA
 
 
 # --- Accès chemins --- #
@@ -67,31 +68,21 @@ def _apply_pragmas(conn: sqlite3.Connection) -> None:
     cur.close()
 
 
-# --- Schema SQL --- #
-from .sql import FIRMWARE_SCHEMA, IMEI_LOG_SCHEMA
-
 SCHEMA_SQL = FIRMWARE_SCHEMA + "\n\n" + IMEI_LOG_SCHEMA
 
 
 def init_db() -> None:
     """Initialize the database schema.
 
-    Creates the data directory and downloads table if they don't exist.
-    The operation is performed within a transaction that will rollback
-    on any error.
+    Creates the data directory and database tables if they don't exist.
+    Note: executescript() implicitly commits, so no manual transaction control needed.
 
     Raises:
-        Exception: If schema creation fails, the exception is re-raised after rollback.
+        Exception: If schema creation fails
     """
     PATHS.data_dir.mkdir(parents=True, exist_ok=True)
     with connect() as conn:
-        conn.execute("BEGIN;")
-        try:
-            conn.executescript(SCHEMA_SQL)
-            conn.execute("COMMIT;")
-        except Exception:
-            conn.execute("ROLLBACK;")
-            raise
+        conn.executescript(SCHEMA_SQL)
 
 
 # --- Repair --- #

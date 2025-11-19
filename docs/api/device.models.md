@@ -1,0 +1,3 @@
+# Device Models
+
+::: device.models

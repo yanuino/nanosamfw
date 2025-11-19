@@ -75,6 +75,12 @@ nav:
     - Service: api/download.service.md
     - Firmware Repository: api/download.firmware_repository.md
     - Configuration: api/download.config.md
+  - Device Detection:
+    - Overview: api/device.md
+    - Detector: api/device.detector.md
+    - Reader: api/device.reader.md
+    - Models: api/device.models.md
+    - Errors: api/device.errors.md
   - Database:
     - Schema: database/schema.md
     - IMEI Repository: api/download.imei_repository.md

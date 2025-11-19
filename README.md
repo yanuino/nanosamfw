@@ -5,6 +5,7 @@ This project is more than just another Samsung firmware downloader — it's a Py
 At its core, it includes:
 - A backend client for the **Samsung Firmware Update Service**
 - A high-level API that simplifies firmware downloads by providing just the **Model**, **CSC**, and **IMEI**
+- **Device detection** (Windows only) to auto-detect connected Samsung devices and read device information
 
 Whether you're building automation scripts, desktop tools, or backend services, this package offers a clean and modular way to access Samsung firmware data programmatically.
 
@@ -21,7 +22,8 @@ Looking for guides, API references, and examples? The full project documentation
 ## 🔧 Requirements
 
 - Python 3.12+  
-- Pip dependencies (we’ve got `pycryptodome`, `requests`, `tqdm` listed in [requirements.txt](requirements.txt))
+- Pip dependencies (we've got `pycryptodome`, `requests`, `tqdm` listed in [requirements.txt](requirements.txt))
+- **For device detection (Windows only)**: `wmi`, `pyserial` and Samsung USB drivers
 
 ---
 

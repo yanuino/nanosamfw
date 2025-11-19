@@ -21,6 +21,12 @@ This package offers a clean, well-documented Python API for:
 - Server nonce handling and signature generation
 - Device ID (IMEI/Serial) validation
 
+### 📱 Device Detection
+- Auto-detect Samsung devices in MTP mode (cross-platform)
+- Read device info via AT commands (model, IMEI, firmware versions)
+- Seamless integration with firmware download workflow
+- **Requires**: pyserial, Samsung USB drivers (Windows)
+
 ### 📦 High-Level Download API
 - One-line firmware downloads with automatic version resolution
 - HTTP Range support for resuming interrupted downloads
@@ -130,6 +136,31 @@ for fw in list_firmware(limit=10):
     print(f"{fw.version_code}: {fw.filename}")
 ```
 
+### Device Integration
+
+```python
+from device import read_device_info
+from download import check_firmware, download_and_decrypt
+
+# Auto-detect connected device (requires pyserial)
+device = read_device_info()
+print(f"Connected: {device.model} - IMEI: {device.imei}")
+print(f"Current firmware: {device.pda_version}")
+
+# Check for updates
+latest = check_firmware(device.model, device.region, device.imei)
+print(f"Latest firmware: {latest}")
+
+# Download if update available
+if latest != device.pda_version:
+    firmware, decrypted = download_and_decrypt(
+        model=device.model,
+        csc=device.region,
+        device_id=device.imei
+    )
+    print(f"Downloaded: {decrypted}")
+```
+
 ## Requirements
 
 - Python 3.12 or higher
@@ -137,6 +168,9 @@ for fw in list_firmware(limit=10):
   - `pycryptodome` - Cryptographic operations
   - `requests` - HTTP client
   - `tqdm` - Progress bars
+- **Device Detection (optional)**:
+  - `pyserial` - Serial port communication and device detection
+  - Samsung USB drivers (Windows)
 
 ## Installation
 

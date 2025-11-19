@@ -1,0 +1,3 @@
+# Device Detector
+
+::: device.detector

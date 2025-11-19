@@ -4,31 +4,41 @@
 nanosamfw (NotANOtherSamsungFirmware downloader) is a Python package for programmatic access to Samsung firmware downloads. It provides:
 - A backend client for Samsung Firmware Update Service (FUS)
 - High-level API for firmware downloads using Model, CSC, and IMEI
+- Device detection and information reading (cross-platform via pyserial)
 - Integration capabilities for tools and workflows
 
 ## Technical Requirements
 - Python 3.12 or higher (3.14+ in pyproject.toml)
-- Dependencies: `pycryptodome`, `requests`, `tqdm`
-- SQLite for download/IMEI tracking
+- Core Dependencies: `pycryptodome`, `requests`, `tqdm`
+- Device Detection: `pyserial>=3.5` (cross-platform)
+- SQLite for firmware/IMEI tracking
 - MkDocs Material for documentation
 
 ## Architecture & Data Flow
 
-### Two-Layer Design
-The codebase is split into low-level protocol (`fus/`) and high-level service (`download/`):
+### Three-Package Design
+The codebase is organized into three main packages:
 
-1. **FUS Layer** (`fus/`) - Protocol implementation
+1. **Device Package** (`device/`) - Device detection and reading (NEW)
+   - Cross-platform Samsung device detection via `serial.tools.list_ports`
+   - AT command communication for reading device info (model, IMEI, firmware versions)
+   - No platform restrictions (works on Windows, Linux, macOS)
+   - Requires Samsung USB drivers on Windows for serial port access
+
+2. **FUS Package** (`fus/`) - Low-level protocol
+
    - `FUSClient` manages session, NONCE rotation, signature generation
    - Each request to Samsung servers follows: NONCE → Sign → Request → Parse
    - NONCE is server-provided, encrypted with `KEY_1` (see `crypto.py`)
    - Signatures use client-side NONCE + logic-check algorithm
    - XML payloads built via `messages.py`, parsed via `responses.py`
 
-2. **Download Layer** (`download/`) - Orchestration & persistence
-   - `download_firmware()` is the main entry point (see `service.py`)
-   - Workflow: version resolution → inform → init → download → decrypt → persist
-   - Database uses repository pattern with explicit transaction management
-   - Files organized as `data/downloads/model/csc/filename.enc4`
+3. **Download Package** (`download/`) - Service & repository layer
+   - Three-layer architecture: Service → Repository → Database
+   - Service functions: `check_firmware()`, `get_or_download_firmware()`, `decrypt_firmware()`, `download_and_decrypt()`
+   - Repository pattern with `FirmwareRecord` (one per version, no model/CSC duplication)
+   - Database uses explicit transaction management (WAL mode, autocommit)
+   - Files organized as `data/firmware/filename.enc4` and `data/decrypted/filename`
 
 ### Critical FUS Protocol Flow
 ```python
@@ -37,44 +47,84 @@ client = FUSClient()  # Gets initial NONCE from server
 
 # 2. BinaryInform - query firmware metadata
 xml = client.inform(build_binary_inform(version, model, csc, imei, client.nonce))
-info = parse_inform(xml)
+info = parse_inform(xml)  # Unified function (replaced get_info_from_inform)
 # info.filename, info.path, info.size_bytes, info.latest_fw_version, info.logic_value_factory
 
 # 3. BinaryInit - authorize download (uses logic_check on last 16 chars of filename)
 client.init(build_binary_init(info.filename, client.nonce))
 
-# 4. Download - stream with Range support (requires full path)
-remote = f"{info.path}/{info.filename}" if info.path else info.filename
+# 4. Download - stream with Range support (path concatenation fixed)
+remote = info.path + info.filename  # Note: path includes trailing slash
 response = client.stream(remote, start=0)  # Returns requests.Response
 
-# 5. Decrypt (optional) - ENC4 requires logic_value from inform response
-key = get_v4_key(version, model, csc, imei, client)
+# 5. Decrypt - ENC4 key from cached logic_value (no extra FUS call needed)
+key = get_v4_key_from_logic(version, info.logic_value_factory)
 decrypt_file(enc_path, out_path, enc_ver=4, key=key)
+```
+
+### Device Detection Flow
+```python
+# 1. Detect devices via serial port enumeration
+from device import detect_samsung_devices, read_device_info
+
+devices = detect_samsung_devices()  # Returns list of DetectedDevice
+for device in devices:
+    print(f"{device.port_name}: {device.manufacturer}")
+
+# 2. Read device info via AT commands
+info = read_device_info()  # Auto-detects first device
+# Or specify port: info = read_device_info("COM3")
+# info.model, info.imei, info.pda_version, info.csc_version, info.region, etc.
+
+# 3. Integration with firmware download
+from download import check_firmware, download_and_decrypt
+
+latest = check_firmware(info.model, info.region, info.imei)
+if latest != info.pda_version:
+    firmware, decrypted = download_and_decrypt(info.model, info.region, info.imei)
 ```
 
 ### Key Integration Points
 - **Database**: WAL mode, autocommit (isolation_level=None), explicit BEGIN/COMMIT
+  - `firmware` table: one record per version_code (unique key)
+  - `imei_log` table: tracks all FOTA queries
+  - No model/CSC columns in firmware table (repository-centric design)
 - **Cryptography**: 
   - `KEY_1`, `KEY_2` are hardcoded Samsung constants (in `crypto.py`)
   - ENC2 uses MD5 of `region:model:version`
-  - ENC4 uses MD5 of logic_check result (requires FUS inform call)
+  - ENC4 uses MD5 of logic_check result
+  - `get_v4_key_from_logic()` computes key from cached logic_value (no FUS call needed)
 - **File Operations**: 
   - Downloads use `.part` suffix for resume support
   - Atomic rename on completion
-  - Path separators sanitized to underscores in directory names
+  - Firmware stored in `data/firmware/` (configurable via FIRM_DATA_DIR)
+  - Decrypted files in `data/decrypted/` (configurable via FIRM_DECRYPT_DIR)
+- **Device Detection**:
+  - Uses `serial.tools.list_ports.comports()` for cross-platform enumeration
+  - Identifies Samsung devices by manufacturer/description/product fields
+  - AT command: `AT+DEVCONINFO` returns device info string
+  - Regex pattern parses: MN(model);VER(pda/csc/modem);IMEI(imei);SN(sn);UN(un)
 
 ## Development Guidelines
 
-### Code Style (from pyproject.toml)
-- **Line Length**: 100 chars max (Black + Pylint enforced)
+### Code Style (from pyproject.toml and .vscode/settings.json)
+- **Line Length**: 100 chars max (Black + Pylint enforced, ruler visible in editor)
 - **Type Hints**: Required for all function parameters and return values
+  - Pylance type checking mode: "standard"
+  - Inlay hints enabled for variables and function returns
 - **Docstrings**: Google-style for all public APIs
   - Use proper `Args:`, `Returns:`, `Raises:` sections
   - No parenthetical exception notes - use `ExceptionType: description` format
 - **Import Ordering**: isort with profile "black"
-  - Known first-party: `download`, `fus`
+  - Known first-party: `device`, `download`, `fus`
   - Use `combine_as_imports = true`
-- **String Quotes**: Skip normalization (preserve original quotes)
+  - **CRITICAL**: All imports must be at top of module (Pylint standard mode enforced)
+  - **NEVER** use lazy imports (e.g., `import` inside functions) unless absolutely necessary
+  - Remove try/except ImportError wrappers for required dependencies
+- **Formatting**: 
+  - Black formatter runs on save (auto-format enabled)
+  - isort runs on save (organizeImports code action)
+  - String quotes: skip normalization (preserve original quotes)
 - **Good Names**: Short names OK for:
   - Loops: `i`, `j`, `k`, `_`
   - Database: `id`, `pk`, `db`
@@ -104,21 +154,26 @@ def list_downloads(...) -> Iterable[DownloadRecord]:
 ```
 
 ### Error Handling
-- Use custom errors from `fus/errors.py`: `FUSError`, `AuthError`, `InformError`, `DownloadError`, `DecryptError`, `DeviceIdError`
+- **FUS Errors** (`fus/errors.py`): `FUSError`, `AuthError`, `InformError`, `DownloadError`, `DecryptError`, `DeviceIdError`
+- **Device Errors** (`device/errors.py`): `DeviceError`, `DeviceNotFoundError`, `DeviceReadError`, `DeviceParseError`
+- **Download Errors**: Propagate FUS errors, wrap in service-specific context if needed
 - Propagate errors up - don't swallow without context
 - Include server status codes in error messages (e.g., `InformError(f"status {status}")`)
+- Avoid catching generic `Exception` - use specific exception types
 
 ### Cryptographic Operations
 - **Do not modify** `KEY_1`, `KEY_2` constants - they're Samsung-specific
 - **Do not change** logic_check algorithm - it's protocol-defined
 - Use established pycryptodome primitives (AES.new, PKCS padding)
-- ENC4 key derivation requires a live FUS inform call (can't be pre-computed)
+- ENC4 key derivation: `get_v4_key_from_logic()` uses cached logic_value (no FUS call needed)
+- InformInfo stores `logic_value_factory` for efficient decryption later
 
 ### Testing & Validation
-- No test suite currently - use `simple_client.py` for manual validation
+- No test suite currently - use `simple_client.py` and `example_device_detection.py` for manual validation
 - Test against real Samsung servers (be mindful of rate limiting)
 - Verify cryptographic operations with known firmware files
 - Check database integrity with `is_healthy()` before repairs
+- Device detection: test on Windows with Samsung USB drivers installed
 
 ## Documentation Workflow
 
@@ -150,16 +205,41 @@ mkdocs gh-deploy
 
 ### Adding Database Tables
 1. Add SQL to `download/sql/*.sql` with schema + indexes
-2. Update `SCHEMA_SQL` in `download/db.py`
-3. Create dataclass in appropriate repository file
-4. Add repository functions (find, list, upsert pattern)
-5. Update `docs/database/schema.md` with table documentation
+2. Update imports in `download/sql/__init__.py` to export new schema
+3. Update `download/db.py` to include schema in `init_db()`
+4. Create dataclass in appropriate repository file
+5. Add repository functions (find, list, upsert pattern)
+6. Update `docs/database/schema.md` with table documentation
 
-### Debugging Download Issues
-- Check `data/firmware.db` for download records
+### Adding Device Detection Features
+1. All device code goes in `device/` package
+2. Use `serial.tools.list_ports` for device enumeration (cross-platform)
+3. Use `serial.Serial` for AT command communication
+4. Add custom exceptions to `device/errors.py` (inherit from `DeviceError`)
+5. Update `device/__init__.py` exports and module docstring
+6. Add documentation to `docs/api/device.*.md`
+7. Test on Windows with Samsung USB drivers
+
+### Debugging Issues
+**Firmware Download:**
+- Check `data/firmware.db` for firmware and imei_log records
 - `.part` files indicate incomplete downloads
 - Enable verbose logging by inspecting requests.Response objects
 - Verify IMEI/Serial validation with `deviceid.py` helpers
+- Path concatenation: `info.path` already includes trailing slash
+
+**Device Detection:**
+- Use `detect_samsung_devices()` to see all detected ports
+- Check port attributes: `.manufacturer`, `.description`, `.product`
+- Windows: Ensure Samsung USB drivers installed (check Device Manager)
+- Linux/macOS: Check user permissions for serial port access
+- AT response parsing: regex expects specific pattern from `AT+DEVCONINFO`
+
+**Code Quality:**
+- Run Black formatter before committing
+- Run isort to organize imports
+- Check Pylint errors (no imports inside functions)
+- Verify type hints with Pylance "standard" mode
 
 ## License and Attribution
 This project is MIT licensed and builds upon GNSF (see: https://github.com/keklick1337/gnsf) by keklick1337.
