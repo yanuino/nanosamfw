@@ -1,7 +1,10 @@
 """Data models for Samsung device information.
 
-This module defines the data structures returned when reading device
-information via MTP mode.
+This module defines the data structures for device information.
+
+.. deprecated::
+    DeviceInfo (AT command format) is deprecated. The package now uses
+    Odin download mode protocol. Use OdinDeviceInfo from device.protocol instead.
 
 Copyright (c) 2024 nanosamfw contributors
 SPDX-License-Identifier: MIT
@@ -12,7 +15,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class DeviceInfo:
-    """Samsung device information retrieved via AT commands.
+    """Samsung device information (DEPRECATED - kept for backward compatibility).
+
+    .. deprecated::
+        This class was used with AT commands for MTP mode devices.
+        The package now uses Odin download mode protocol.
+        Use OdinDeviceInfo from device.protocol instead.
 
     All fields are extracted from the AT+DEVCONINFO response which follows
     the pattern: MN(model);BASE(base);VER(pda/csc/modem/etc);PRD(product);

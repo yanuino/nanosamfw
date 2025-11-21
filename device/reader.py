@@ -1,136 +1,174 @@
-"""Read device information via AT commands over serial port.
+"""Read device information via Odin protocol over serial port.
 
-This module communicates with Samsung devices in MTP mode using AT commands
-to retrieve firmware version, IMEI, serial number, and other device information.
+This module communicates with Samsung devices in download mode (Odin mode)
+using the DVIF (0x44,0x56,0x49,0x46) byte protocol to retrieve firmware version,
+model, and device info.
 
-Requires pyserial and Samsung USB drivers (Windows).
+Based on SharpOdinClient implementation by Gsm Alphabet.
+
+**Protocol**: Odin/LOKE binary protocol
+**Requires**: pyserial, Samsung USB drivers (Windows), device in download mode
 
 Copyright (c) 2024 nanosamfw contributors
 SPDX-License-Identifier: MIT
 """
 
-import re
 import time
 from typing import Optional
 
 import serial
 
 from device.detector import get_first_device
-from device.errors import DeviceParseError, DeviceReadError
-from device.models import DeviceInfo
-
-# AT+DEVCONINFO response pattern from Samsung devices
-_AT_RESPONSE_PATTERN = re.compile(
-    r"MN\((.*?)\);BASE\((.*?)\);VER\((.*?)/(.*?)/(.*?)/(.*?)\);"
-    r"HIDVER\(.*?\);MNC\(.*?\);MCC\(.*?\);PRD\((.*?)\);.*?"
-    r"SN\((.*?)\);IMEI\((.*?)\);UN\((.*?)\);"
+from device.errors import DeviceReadError
+from device.protocol import (
+    DVIF_COMMAND,
+    LOKE_RESPONSE,
+    ODIN_COMMAND,
+    OdinDeviceInfo,
+    parse_dvif_response,
 )
 
 
-def _parse_at_response(response: str) -> DeviceInfo:
-    """Parse AT+DEVCONINFO response into DeviceInfo.
+def is_odin_mode(
+    port_name: str,
+    *,
+    timeout: float = 2.0,
+) -> bool:
+    """Check if device is in Odin download mode.
+
+    Sends ODIN command (0x4F,0x44,0x49,0x4E) and checks for LOKE response.
 
     Args:
-        response: Raw AT command response string
+        port_name: Serial port name (e.g., "COM3" on Windows, "/dev/ttyACM0" on Linux)
+        timeout: Read timeout in seconds
 
     Returns:
-        Parsed device information
+        True if device responds with LOKE, False otherwise
 
     Raises:
-        DeviceParseError: If response doesn't match expected pattern
+        DeviceReadError: If serial communication fails
     """
-    match = _AT_RESPONSE_PATTERN.search(response)
-    if not match:
-        raise DeviceParseError(
-            f"Could not parse AT response. Expected pattern not found in: {response[:200]}"
-        )
+    try:
+        with serial.Serial(
+            port=port_name,
+            baudrate=115200,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=timeout,
+            rtscts=True,  # RTS/CTS hardware flow control
+        ) as port:
+            # Clear input buffer
+            port.reset_input_buffer()
 
-    groups = match.groups()
-    if len(groups) < 10:
-        raise DeviceParseError(
-            f"AT response matched but insufficient groups. Got {len(groups)}, expected 10"
-        )
+            # Send ODIN command
+            port.write(ODIN_COMMAND)
+            time.sleep(0.4)  # Wait for response
 
-    # Extract 3-char region code from product field (last 3 characters)
-    product = groups[6]
-    region = product[-3:] if len(product) >= 3 else product
+            # Read response
+            bytes_waiting = port.in_waiting
+            if bytes_waiting > 0:
+                response = port.read(bytes_waiting)
+                return LOKE_RESPONSE in response
+            return False
 
-    return DeviceInfo(
-        model=groups[0],
-        device_name=groups[0],  # Samsung typically uses same value
-        pda_version=groups[2],
-        csc_version=groups[3],
-        modem_version=groups[4],
-        region=region,
-        serial_number=groups[7],
-        imei=groups[8],
-        unique_number=groups[9],
-    )
+    except serial.SerialException as ex:
+        raise DeviceReadError(
+            f"Serial communication error on {port_name}: {ex}. "
+            "Verify device is in download mode and Samsung USB drivers are installed."
+        ) from ex
 
 
 def read_device_info(
     port_name: Optional[str] = None,
     *,
     timeout: float = 2.0,
-    baud_rate: int = 19200,
-) -> DeviceInfo:
-    """Read device information from Samsung device via AT commands.
+    port_instance: Optional[serial.Serial] = None,
+) -> OdinDeviceInfo:
+    """Read device information from Samsung device in download mode.
 
-    Opens serial connection to device, sends AT+DEVCONINFO command,
+    Sends DVIF command (0x44,0x56,0x49,0x46) to device in Odin mode
     and parses the response.
+
+    The device must be in download mode (Odin mode) for this to work.
+    To enter download mode: Power off device, then hold Volume Down + Home + Power.
+
+    IMPORTANT: If calling both is_odin_mode() and read_device_info(), pass an opened
+    port via port_instance to keep the connection alive between operations.
 
     Args:
         port_name: Serial port name (e.g., "COM3" on Windows, "/dev/ttyACM0" on Linux).
-            If None, auto-detects first device.
+            If None, auto-detects first device in download mode. Ignored if port_instance provided.
         timeout: Read timeout in seconds
-        baud_rate: Serial communication baud rate (default: 19200)
+        port_instance: Optional pre-opened serial port. If provided, port will NOT be closed.
 
     Returns:
-        Device information
+        Device information from Odin protocol
 
     Raises:
-        DeviceReadError: If serial communication fails or device is busy
-        DeviceParseError: If response cannot be parsed
+        DeviceReadError: If serial communication fails or device not in Odin mode
+        ValueError: If response cannot be parsed
         DeviceNotFoundError: If auto-detection fails
     """
+    # Use provided port or auto-detect/open new one
+    if port_instance is not None:
+        port = port_instance
+        should_close = False
+    else:
+        # Auto-detect device if port not specified
+        if port_name is None:
+            device = get_first_device()
+            port_name = device.port_name
 
-    # Auto-detect device if port not specified
-    if port_name is None:
-        device = get_first_device()
-        port_name = device.port_name
+        port = serial.Serial(
+            port=port_name,
+            baudrate=115200,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=timeout,
+            rtscts=True,
+        )
+        # Disable DTR and RTS after opening (may reset device if done before)
+        port.dtr = False
+        port.rts = False
+        should_close = True
 
     try:
-        with serial.Serial(
-            port=port_name,
-            baudrate=baud_rate,
-            bytesize=serial.EIGHTBITS,
-            timeout=timeout,
-        ) as port:
-            # Send AT command
-            port.write(b"AT+DEVCONINFO\r\n")
-            time.sleep(1)  # Wait for device response
+        # Clear input buffer
+        port.reset_input_buffer()
 
-            # Read response
-            raw_response = port.read_all()
-            if raw_response is None:
-                raw_response = b""
+        # Send DVIF command
+        port.write(DVIF_COMMAND)
+        time.sleep(0.4)  # Wait for device response
+
+        # Read response
+        bytes_waiting = port.in_waiting
+        if bytes_waiting > 0:
+            raw_response = port.read(bytes_waiting)
             response = raw_response.decode("utf-8", errors="replace")
+        else:
+            response = ""
 
-            if not response:
-                raise DeviceReadError(
-                    f"No response from device on {port_name}. "
-                    "Check device connection and driver installation."
-                )
+        if not response:
+            port_desc = port_name if port_name else port.port
+            raise DeviceReadError(
+                f"No response from device on {port_desc}. "
+                "Ensure device is in download mode (Odin mode). "
+                "To enter download mode: Power off device, "
+                "then hold Volume Down + Home + Power."
+            )
 
-            if "BUSY" in response:
-                raise DeviceReadError(
-                    f"Device on {port_name} is busy. Try again or restart device."
-                )
-
-            return _parse_at_response(response)
+        # Parse DVIF response
+        return parse_dvif_response(response)
 
     except serial.SerialException as ex:
+        port_desc = port_name if port_name else port.port
         raise DeviceReadError(
-            f"Serial communication error on {port_name}: {ex}. "
-            "Verify port name and Samsung USB drivers are installed."
+            f"Serial communication error on {port_desc}: {ex}. "
+            "Verify device is in download mode and Samsung USB drivers are installed."
         ) from ex
+    finally:
+        # Only close if we created the port
+        if should_close and port.is_open:
+            port.close()

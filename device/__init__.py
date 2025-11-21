@@ -1,12 +1,23 @@
 """Samsung device detection and information reading.
 
-This package provides functionality to detect Samsung devices connected in MTP mode
-and read device information (model, IMEI, firmware versions) via AT commands.
+This package provides functionality to detect Samsung devices in download mode (Odin mode)
+and read device information using the Odin binary protocol.
+
+Based on SharpOdinClient implementation by Gsm Alphabet (https://github.com/Alephgsm/SharpOdinClient)
 
 **Platform Requirements:**
 - Cross-platform support (Windows, Linux, macOS)
 - Samsung USB drivers installed (Windows)
 - Python package: pyserial
+- Device must be in download mode (Odin mode)
+
+**Entering Download Mode:**
+
+To put a Samsung device into download mode:
+1. Power off the device completely
+2. Press and hold: Volume Down + Home + Power buttons
+3. When warning screen appears, press Volume Up to continue
+4. Device should display "Downloading..." screen
 
 **Installation:**
 
@@ -20,27 +31,34 @@ Auto-detect and read device info:
 
 .. code-block:: python
 
-    from device import read_device_info
+    from device import read_device_info, is_odin_mode
 
     try:
-        info = read_device_info()
-        print(f"Model: {info.model}")
-        print(f"IMEI: {info.imei}")
-        print(f"Firmware: {info.pda_version}")
+        # Check if device is in Odin mode
+        from device import detect_download_mode_devices
+        devices = detect_download_mode_devices()
+
+        if devices:
+            port = devices[0].port_name
+            if is_odin_mode(port):
+                info = read_device_info(port)
+                print(f"Model: {info.model}")
+                print(f"Firmware: {info.fwver}")
+                print(f"Sales Code: {info.sales}")
     except Exception as ex:
         print(f"Error: {ex}")
 
-Manual device detection:
+Manual device detection with VID/PID:
 
 .. code-block:: python
 
-    from device import detect_samsung_devices, read_device_info
+    from device import detect_download_mode_devices
 
-    devices = detect_samsung_devices()
+    devices = detect_download_mode_devices()
     for device in devices:
-        print(f"Found: {device.device_name} on {device.port_name}")
-        info = read_device_info(device.port_name)
-        print(info)
+        print(f"Found: {device.device_name}")
+        print(f"  Port: {device.port_name}")
+        print(f"  VID: {device.vid}, PID: {device.pid}")
 
 **Integration with nanosamfw:**
 
@@ -51,41 +69,69 @@ Use detected device information for firmware downloads:
     from device import read_device_info
     from download import check_firmware, download_and_decrypt
 
-    # Read from connected device
+    # Read from device in download mode
     device_info = read_device_info()
 
-    # Check latest firmware
-    firmware_info = check_firmware(
-        model=device_info.model,
-        csc=device_info.region,
-        device_id=device_info.imei
-    )
-
-    # Download if newer version available
-    if firmware_info.latest_fw_version != device_info.pda_version:
-        download_and_decrypt(
+    # Use sales code as CSC for firmware download
+    if device_info.model and device_info.sales:
+        firmware_info = check_firmware(
             model=device_info.model,
-            csc=device_info.region,
-            device_id=device_info.imei
+            csc=device_info.sales,
+            device_id=""  # IMEI not available in download mode
         )
+
+**Protocol Details:**
+
+This package implements the Odin/LOKE protocol used by Samsung's Odin flash tool:
+- DVIF (0x44,0x56,0x49,0x46): Get device information
+- ODIN (0x4F,0x44,0x49,0x4E): Verify Odin mode (expects "LOKE" response)
+- Communication at 115200 baud with RTS/CTS flow control
 
 Copyright (c) 2024 nanosamfw contributors
 SPDX-License-Identifier: MIT
 """
 
-from device.detector import DetectedDevice, detect_samsung_devices, get_first_device
+from device.detector import (
+    DetectedDevice,
+    detect_download_mode_devices,
+    detect_samsung_devices,
+    get_first_device,
+)
 from device.errors import DeviceError, DeviceNotFoundError, DeviceParseError, DeviceReadError
 from device.models import DeviceInfo
-from device.reader import read_device_info
+from device.protocol import (
+    DVIF_COMMAND,
+    LOKE_RESPONSE,
+    ODIN_COMMAND,
+    OdinCommand,
+    OdinDeviceInfo,
+    get_variant,
+    parse_dvif_response,
+)
+from device.reader import is_odin_mode, read_device_info
+from device.reader_at import ATDeviceInfo, read_device_info_at
 
 __all__ = [
-    # Main functions
+    # Main functions - Odin protocol (download mode)
     "detect_samsung_devices",
+    "detect_download_mode_devices",
     "get_first_device",
-    "read_device_info",
+    "read_device_info",  # Odin/DVIF protocol
+    "is_odin_mode",
+    # AT command functions (normal mode)
+    "read_device_info_at",
     # Models
-    "DeviceInfo",
+    "DeviceInfo",  # AT command result / deprecated Odin model
+    "OdinDeviceInfo",  # Odin protocol result
+    "ATDeviceInfo",  # AT command result
     "DetectedDevice",
+    "OdinCommand",
+    # Protocol constants
+    "DVIF_COMMAND",
+    "ODIN_COMMAND",
+    "LOKE_RESPONSE",
+    "get_variant",
+    "parse_dvif_response",
     # Errors
     "DeviceError",
     "DeviceNotFoundError",

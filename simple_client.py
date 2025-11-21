@@ -13,15 +13,16 @@ from fus.firmware import normalize_vercode, read_firmware_info
 from fus.messages import build_binary_inform, build_binary_init
 from fus.responses import parse_inform
 
-model, region = "SM-A146P", "EUX"  # EUX
+model, region = "SM-S908B", "EUX"  # EUX
 tac: str = "35297624"  # 8-digit TAC code
-imei: str = "352976245060954"
+imei: str = "350048582852237"
 ver: str = get_latest_version(model, region)  # latest via version.xml FOTA
+
 info = read_firmware_info(ver)
 print(f"Latest: {ver}\nBL: {info['bl']}\nDate: {info['date']}\nIter: {info['it']}")
 
-key = get_v4_key(ver, model, region, imei)
-print(f"Decryption key: {key.hex()}")  # type: ignore
+# key = get_v4_key(ver, model, region, imei)
+# print(f"Decryption key: {key.hex()}")  # type: ignore
 
 client = FUSClient()
 ver: str = normalize_vercode(ver)
@@ -35,7 +36,7 @@ inform_xml = client.inform(
 raw = ET.tostring(inform_xml, encoding="unicode")
 pretty = minidom.parseString(raw).toprettyxml(indent="  ")
 
-# print(f"Inform response received: {pretty}")
+print(f"Inform response received: {pretty}")
 
 info_inform = parse_inform(inform_xml)
 print(

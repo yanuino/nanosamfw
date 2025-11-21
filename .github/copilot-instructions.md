@@ -19,9 +19,21 @@ nanosamfw (NotANOtherSamsungFirmware downloader) is a Python package for program
 ### Three-Package Design
 The codebase is organized into three main packages:
 
-1. **Device Package** (`device/`) - Device detection and reading (NEW)
+1. **Device Package** (`device/`) - Device detection and reading (dual protocol support)
    - Cross-platform Samsung device detection via `serial.tools.list_ports`
-   - AT command communication for reading device info (model, IMEI, firmware versions)
+   - **Two Protocol Options**:
+     - **Odin Protocol** (`reader.py`) - For download mode devices (based on SharpOdinClient)
+       - DVIF command (0x44,0x56,0x49,0x46) reads device info: model, fwver, sales, etc.
+       - ODIN command (0x4F,0x44,0x49,0x4E) verifies download mode (expects "LOKE")
+       - Communication at 115200 baud with RTS/CTS flow control
+       - Device must be in download mode (Volume Down + Home + Power)
+       - Returns `OdinDeviceInfo` dataclass
+       - **Note**: DVIF may not work on all devices/firmware versions
+     - **AT Commands** (`reader_at.py`) - For normal/recovery mode devices
+       - AT+DEVCONINFO command for device information
+       - Parses semicolon-delimited key-value format: `MN(model);VER(fw);PRD(sales);IMEI(imei);...`
+       - Standard serial communication (115200 baud, no special flow control)
+       - Returns `ATDeviceInfo` dataclass with model, firmware_version, sales_code, imei
    - No platform restrictions (works on Windows, Linux, macOS)
    - Requires Samsung USB drivers on Windows for serial port access
 
@@ -62,26 +74,60 @@ key = get_v4_key_from_logic(version, info.logic_value_factory)
 decrypt_file(enc_path, out_path, enc_ver=4, key=key)
 ```
 
-### Device Detection Flow
+### Device Detection Flow (Two Approaches)
+
+**Option 1: AT Commands (Normal/Recovery Mode)**
 ```python
-# 1. Detect devices via serial port enumeration
-from device import detect_samsung_devices, read_device_info
+# For devices in normal mode or recovery mode
+from device import read_device_info_at
 
-devices = detect_samsung_devices()  # Returns list of DetectedDevice
-for device in devices:
-    print(f"{device.port_name}: {device.manufacturer}")
+# Read device info via AT commands
+device = read_device_info_at()  # Auto-detects first device
+# Or specify port: device = read_device_info_at("COM3")
 
-# 2. Read device info via AT commands
-info = read_device_info()  # Auto-detects first device
-# Or specify port: info = read_device_info("COM3")
-# info.model, info.imei, info.pda_version, info.csc_version, info.region, etc.
+# Returns ATDeviceInfo with: model, firmware_version, sales_code, imei
+print(f"Model: {device.model}")
+print(f"Firmware: {device.firmware_version}")
+print(f"Region: {device.sales_code}")
+print(f"IMEI: {device.imei}")
 
-# 3. Integration with firmware download
+# Integration with firmware download (IMEI available)
 from download import check_firmware, download_and_decrypt
 
-latest = check_firmware(info.model, info.region, info.imei)
-if latest != info.pda_version:
-    firmware, decrypted = download_and_decrypt(info.model, info.region, info.imei)
+latest = check_firmware(device.model, device.sales_code, device.imei)
+if latest != device.firmware_version:
+    firmware, decrypted = download_and_decrypt(
+        device.model, device.sales_code, device.imei
+    )
+```
+
+**Option 2: Odin Protocol (Download Mode)**
+```python
+# For devices in download mode (Odin mode)
+from device import detect_download_mode_devices, is_odin_mode, read_device_info
+
+# 1. Detect devices in download mode
+devices = detect_download_mode_devices()  # Returns list with VID/PID
+for device in devices:
+    print(f"{device.port_name}: {device.device_name} ({device.vid}:{device.pid})")
+
+# 2. Verify device is in Odin mode
+if is_odin_mode(devices[0].port_name):
+    print("Device in download mode")
+
+# 3. Read device info via DVIF protocol (0x44,0x56,0x49,0x46)
+info = read_device_info()  # Auto-detects first device
+# Or specify port: info = read_device_info("COM3")
+# Returns OdinDeviceInfo with: model, fwver, sales, vendor, un, did, etc.
+# Response format: @key1=val1;key2=val2;...#
+# Note: DVIF may not work on all devices - use AT commands as fallback
+
+# 4. Integration with firmware download (no IMEI available)
+from download import check_firmware, download_and_decrypt
+
+latest = check_firmware(info.model, info.sales, "")  # Empty IMEI in download mode
+if latest != info.fwver:
+    firmware, decrypted = download_and_decrypt(info.model, info.sales, "")
 ```
 
 ### Key Integration Points
@@ -101,9 +147,18 @@ if latest != info.pda_version:
   - Decrypted files in `data/decrypted/` (configurable via FIRM_DECRYPT_DIR)
 - **Device Detection**:
   - Uses `serial.tools.list_ports.comports()` for cross-platform enumeration
-  - Identifies Samsung devices by manufacturer/description/product fields
-  - AT command: `AT+DEVCONINFO` returns device info string
-  - Regex pattern parses: MN(model);VER(pda/csc/modem);IMEI(imei);SN(sn);UN(un)
+  - Identifies Samsung devices by "SAMSUNG MOBILE USB MODEM" in description
+  - Extracts VID/PID from hardware ID (e.g., "USB VID:PID=04E8:685D")
+  - **Odin Protocol (Download Mode)**:
+    - DVIF protocol: sends bytes [0x44,0x56,0x49,0x46], parses @key=val;...# response
+    - ODIN protocol: sends bytes [0x4F,0x44,0x49,0x4E], expects "LOKE" response
+    - Communication: 115200 baud, RTS/CTS flow control, DTR/RTS off initially
+    - Response keys: capa, product, model, fwver, vendor, sales, ver, did, un, tmu_temp, prov
+  - **AT Protocol (Normal/Recovery Mode)**:
+    - AT+DEVCONINFO command: `AT+DEVCONINFO\r\n`
+    - Parses response format: `MN(model);VER(pda/csc/modem/bl);PRD(sales);IMEI(imei);...`
+    - Communication: 115200 baud, standard serial (no special flow control)
+    - Returns: model, firmware_version (PDA), sales_code (PRD), imei
 
 ## Development Guidelines
 
@@ -154,11 +209,19 @@ def list_downloads(...) -> Iterable[DownloadRecord]:
 ```
 
 ### Error Handling
-- **FUS Errors** (`fus/errors.py`): `FUSError`, `AuthError`, `InformError`, `DownloadError`, `DecryptError`, `DeviceIdError`
+- **FUS Errors** (`fus/errors.py`) with built-in message subtypes:
+  - `FUSError` - Base class
+  - `InformError` subtypes: `MissingStatus()`, `BadStatus(status)`, `MissingField(field_name)`, `DecryptionKeyError(model, region, device_id)`
+  - `DownloadError` subtypes: `HTTPError(status_code, url)`
+  - `DecryptError` subtypes: `DeviceIdRequired()`, `InvalidBlockSize(size)`
+  - `DeviceIdError` subtypes: `InvalidTAC(tac)`
+  - `FOTAError` subtypes: `ModelOrRegionNotFound(model, region)`, `NoFirmware(model, region)`
+  - `FOTAParsingError(field, model, region)` - FOTA XML parsing errors
 - **Device Errors** (`device/errors.py`): `DeviceError`, `DeviceNotFoundError`, `DeviceReadError`, `DeviceParseError`
-- **Download Errors**: Propagate FUS errors, wrap in service-specific context if needed
+- **Error Subtype Pattern**: Error classes have nested exception classes with self-managing messages
+  - Example: `raise InformError.MissingField("BINARY_NAME")` instead of `raise InformError("Missing BINARY_NAME in inform response")`
+  - Messages automatically include context (model, region, status codes, etc.)
 - Propagate errors up - don't swallow without context
-- Include server status codes in error messages (e.g., `InformError(f"status {status}")`)
 - Avoid catching generic `Exception` - use specific exception types
 
 ### Cryptographic Operations
@@ -169,7 +232,10 @@ def list_downloads(...) -> Iterable[DownloadRecord]:
 - InformInfo stores `logic_value_factory` for efficient decryption later
 
 ### Testing & Validation
-- No test suite currently - use `simple_client.py` and `example_device_detection.py` for manual validation
+- No test suite currently - use manual validation scripts:
+  - `simple_client.py` / `simple_client2.py` - Basic firmware download
+  - `example_device_detection.py` - AT command device detection (normal/recovery mode)
+  - `example_odin_device_detection.py` - Odin protocol device detection (download mode)
 - Test against real Samsung servers (be mindful of rate limiting)
 - Verify cryptographic operations with known firmware files
 - Check database integrity with `is_healthy()` before repairs
@@ -233,7 +299,15 @@ mkdocs gh-deploy
 - Check port attributes: `.manufacturer`, `.description`, `.product`
 - Windows: Ensure Samsung USB drivers installed (check Device Manager)
 - Linux/macOS: Check user permissions for serial port access
-- AT response parsing: regex expects specific pattern from `AT+DEVCONINFO`
+- **AT Commands** (`read_device_info_at()`):
+  - Response parsing: expects `MN(model);VER(pda/csc/modem/bl);PRD(sales);IMEI(imei);...` format
+  - Returns `ATDeviceInfo` with model, firmware_version, sales_code, imei
+  - Works in normal mode or recovery mode
+- **Odin Protocol** (`read_device_info()`):
+  - DVIF response parsing: expects `@key=val;key=val;...#` format
+  - Returns `OdinDeviceInfo` with model, fwver, sales, vendor, un, did, etc.
+  - Requires device in download mode (Volume Down + Home + Power)
+  - DVIF may not work on all devices - use AT commands as fallback
 
 **Code Quality:**
 - Run Black formatter before committing
