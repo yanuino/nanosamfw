@@ -55,7 +55,7 @@ def autofill_imei(tac: str) -> str:
         DeviceIdError: If TAC is not numeric or shorter than 8 digits.
     """
     if not tac.isdecimal() or len(tac) < 8:
-        raise DeviceIdError("TAC must have at least 8 digits")
+        raise DeviceIdError.InvalidTAC(tac)
     if len(tac) >= 15:
         return tac[:15]
     missing = 14 - len(tac)

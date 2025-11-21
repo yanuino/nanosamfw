@@ -81,9 +81,7 @@ def get_v4_key(
         InformError: If the inform response lacks expected fields.
     """
     if not device_id:
-        raise DecryptError(
-            "Device ID (IMEI or Serial) required for ENC4 key (Samsung requirement)."
-        )
+        raise DecryptError.DeviceIdRequired()
     client = client or FUSClient()
     ver = normalize_vercode(version)
     resp = client.inform(build_binary_inform(ver, model, region, device_id, client.nonce))
@@ -91,7 +89,7 @@ def get_v4_key(
         fwver = resp.find("./FUSBody/Results/LATEST_FW_VERSION/Data").text  # type: ignore
         logicval = resp.find("./FUSBody/Put/LOGIC_VALUE_FACTORY/Data").text  # type: ignore
     except Exception as exc:
-        raise InformError("Could not obtain decryption key; check model/region/device_id.") from exc
+        raise InformError.DecryptionKeyError(model, region, device_id) from exc
     return get_v4_key_from_logic(fwver, logicval)  # type: ignore
 
 
@@ -119,7 +117,7 @@ def _decrypt_progress(
         DecryptError: If total is not a multiple of AES block size (16).
     """
     if total % 16 != 0:
-        raise DecryptError("Invalid input block size (not multiple of 16)")
+        raise DecryptError.InvalidBlockSize(total)
     cipher = AES.new(key, AES.MODE_ECB)
     pbar = None if progress_cb else tqdm(total=total, unit="B", unit_scale=True)
     written = 0

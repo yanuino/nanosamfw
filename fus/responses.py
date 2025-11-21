@@ -58,34 +58,34 @@ def parse_inform(root: ET.Element) -> InformInfo:
     """
     status_elem = root.find("./FUSBody/Results/Status")
     if status_elem is None or status_elem.text is None:
-        raise InformError("Missing Status field in inform response")
+        raise InformError.MissingStatus()
 
     status = int(status_elem.text)
     if status != 200:
-        raise InformError(f"DownloadBinaryInform returned {status}")
+        raise InformError.BadStatus(status)
 
     # Extract required fields - raise InformError if any are missing
     latest = root.findtext("./FUSBody/Results/LATEST_FW_VERSION/Data")
     if not latest:
-        raise InformError("Missing LATEST_FW_VERSION in inform response")
+        raise InformError.MissingField("LATEST_FW_VERSION")
 
     logic = root.findtext("./FUSBody/Put/LOGIC_VALUE_FACTORY/Data")
     if not logic:
-        raise InformError("Missing LOGIC_VALUE_FACTORY in inform response")
+        raise InformError.MissingField("LOGIC_VALUE_FACTORY")
 
     filename_elem = root.find("./FUSBody/Put/BINARY_NAME/Data")
     if filename_elem is None or not filename_elem.text:
-        raise InformError("Missing BINARY_NAME in inform response")
+        raise InformError.MissingField("BINARY_NAME")
     filename = filename_elem.text
 
     size_elem = root.find("./FUSBody/Put/BINARY_BYTE_SIZE/Data")
     if size_elem is None or not size_elem.text:
-        raise InformError("Missing BINARY_BYTE_SIZE in inform response")
+        raise InformError.MissingField("BINARY_BYTE_SIZE")
     size = int(size_elem.text)
 
     path = root.findtext("./FUSBody/Put/MODEL_PATH/Data")
     if not path:
-        raise InformError("Missing MODEL_PATH in inform response")
+        raise InformError.MissingField("MODEL_PATH")
 
     return InformInfo(
         latest_fw_version=latest,

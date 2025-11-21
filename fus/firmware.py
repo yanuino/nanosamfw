@@ -24,7 +24,7 @@ from typing import Optional, Tuple
 import requests
 
 from .config import DEFAULT_CONFIG
-from .errors import FUSError
+from .errors import FOTAError, FOTAParsingError
 
 
 def normalize_vercode(vercode: str) -> str:
@@ -192,8 +192,8 @@ def format_firmware_info(firmware: str) -> str:
         result += f"Version iteration: {info['it']}"
 
         return result
-    except ValueError:
-        return f"Could not parse firmware string: {firmware}"
+    except ValueError as ex:
+        raise FOTAParsingError(field="firmware") from ex
 
 
 def get_latest_version(model: str, region: str) -> str:
@@ -222,10 +222,11 @@ def get_latest_version(model: str, region: str) -> str:
         timeout=timeout,
     )
     if req.status_code == 403:
-        raise FUSError("Model or region not found (403)")
+        raise FOTAError.ModelOrRegionNotFound(model, region)
     req.raise_for_status()
     root = ET.fromstring(req.text)
+    print(req.text)
     latest = root.find("./firmware/version/latest").text  # type: ignore
     if latest is None:
-        raise FUSError("No latest firmware available")
+        raise FOTAError.NoFirmware(model, region)
     return normalize_vercode(latest)

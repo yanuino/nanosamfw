@@ -148,5 +148,5 @@ class FUSClient:
             timeout=self.cfg.request_timeout,
         )
         if not r.ok:
-            raise DownloadError(f"HTTP {r.status_code} on download")
+            raise DownloadError.HTTPError(r.status_code, filename)
         return r
