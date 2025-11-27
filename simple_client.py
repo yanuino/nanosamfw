@@ -155,9 +155,9 @@ def main_raw_fus(model: str, region: str, imei: str) -> None:
 
 if __name__ == "__main__":
     # Defaults (edit as needed or add argparse)
-    default_model = "SM-A146P"
-    default_csc = "EUX"
-    default_imei = "352976245060954"
+    default_model = "SM-A346E"
+    default_csc = "MWD"
+    default_imei = "352879327060290"
 
     # High-level download service (recommended)
     # main_high_level(default_model, default_csc, default_imei)
