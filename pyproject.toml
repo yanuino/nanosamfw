@@ -5,6 +5,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "pycryptodome>=3.23.0",
     "pyserial>=3.5",
+    "customtkinter>=5.2.0",
 ]
 
 [tool.black]
@@ -17,8 +18,8 @@ profile = "black"
 line_length = 100
 skip_gitignore = true
 combine_as_imports = true
-known_first_party = ["device", "download", "fus"]
-src_paths = ["device", "download", "fus"]
+known_first_party = ["device", "download", "fus", "app"]
+src_paths = ["device", "download", "fus", "app"]
 include_trailing_comma = true
 multi_line_output = 3
 
