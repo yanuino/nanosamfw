@@ -225,7 +225,6 @@ def get_latest_version(model: str, region: str) -> str:
         raise FOTAError.ModelOrRegionNotFound(model, region)
     req.raise_for_status()
     root = ET.fromstring(req.text)
-    print(req.text)
     latest = root.find("./firmware/version/latest").text  # type: ignore
     if latest is None:
         raise FOTAError.NoFirmware(model, region)

@@ -33,7 +33,12 @@ class FUSError(Exception):
             super().__init__(msg)
 
 
-class AuthError(FUSError): ...
+class AuthError(FUSError):
+    """Raised for authentication failures in FUS operations.
+
+    Typical causes include invalid or expired NONCE, signature mismatch,
+    or blocked client credentials when contacting Samsung FUS endpoints.
+    """
 
 
 class InformError(FUSError):

@@ -174,3 +174,23 @@ def update_decrypted_path(version_code: str, decrypted_path: str) -> None:
         except Exception:
             conn.execute("ROLLBACK;")
             raise
+
+
+def delete_firmware(version_code: str) -> None:
+    """Delete a firmware record by version code.
+
+    Removes the firmware row from the repository. This does not delete any
+    files on disk; callers should remove associated files before invoking.
+
+    Args:
+        version_code: Firmware version identifier to delete.
+    """
+    sql = "DELETE FROM firmware WHERE version_code=?;"
+    with connect() as conn:
+        conn.execute("BEGIN;")
+        try:
+            conn.execute(sql, (version_code,))
+            conn.execute("COMMIT;")
+        except Exception:
+            conn.execute("ROLLBACK;")
+            raise

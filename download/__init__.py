@@ -100,9 +100,16 @@ Configuration:
 """
 
 from .db import get_db_path, init_db, is_healthy, repair_db
-from .firmware_repository import FirmwareRecord, find_firmware, list_firmware, update_decrypted_path
+from .firmware_repository import (
+    FirmwareRecord,
+    delete_firmware,
+    find_firmware,
+    list_firmware,
+    update_decrypted_path,
+)
 from .service import (
     check_firmware,
+    cleanup_repository,
     decrypt_firmware,
     download_and_decrypt,
     get_or_download_firmware,

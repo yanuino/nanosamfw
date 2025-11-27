@@ -11,7 +11,7 @@ decryption services.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 
 from fus.client import FUSClient
 from fus.decrypt import decrypt_file, get_v4_key_from_logic
@@ -23,7 +23,9 @@ from fus.responses import parse_inform
 from .config import PATHS
 from .firmware_repository import (
     FirmwareRecord,
+    delete_firmware,
     find_firmware,
+    list_firmware,
     update_decrypted_path,
     upsert_firmware,
 )
@@ -243,34 +245,30 @@ def download_and_decrypt(
     *,
     output_path: Optional[str] = None,
     resume: bool = True,
-    progress_cb: Optional[Callable[[int, int], None]] = None,
+    progress_cb: Optional[Callable[[str, int, int], None]] = None,
 ) -> tuple[FirmwareRecord, str]:
     """Complete workflow: check FOTA, download, and decrypt firmware.
 
-    Convenience function that performs the full workflow:
-    1. Check latest version via FOTA (if version not specified)
-    2. Download firmware to repository (if not already present)
+    Performs the full workflow:
+    1. Resolve firmware version (FOTA if not specified)
+    2. Download encrypted firmware into repository (with resume support)
     3. Decrypt firmware to output directory
+
+    A single optional ``progress_cb`` is invoked for both stages with:
+        progress_cb(stage, done_bytes, total_bytes)
+    where ``stage`` is one of ``"download"`` or ``"decrypt"``.
 
     Args:
         model: Device model identifier.
-        csc: Country Specific Code.
-        device_id: Device IMEI or serial number.
-        version: Optional specific version to download. If None, fetches latest.
-        output_path: Optional custom decryption output path.
-        resume: If True, resume partial downloads.
-        progress_cb: Optional progress callback for download and decrypt.
+        csc: Country Specific Code (region).
+        device_id: Device IMEI or serial/blank for download mode.
+        version: Specific version to fetch; if None latest is used.
+        output_path: Optional explicit decrypted output path.
+        resume: Resume partial downloads when True.
+        progress_cb: Unified callback for both stages.
 
     Returns:
-        Tuple of (FirmwareRecord, decrypted_file_path).
-
-    Example:
-        firmware, decrypted = download_and_decrypt(
-            "SM-A146P", "EUX", "352976245060954",
-            decrypt=True
-        )
-        print(f"Version: {firmware.version_code}")
-        print(f"Decrypted: {decrypted}")
+        (FirmwareRecord, decrypted_file_path)
     """
     # 1. Resolve version
     if not version:
@@ -279,11 +277,78 @@ def download_and_decrypt(
         version = normalize_vercode(version)
 
     # 2. Download to repository
+    def _dl_cb(done: int, total: int):
+        if progress_cb:
+            progress_cb("download", done, total)
+
     firmware = get_or_download_firmware(
-        version, model, csc, device_id, resume=resume, progress_cb=progress_cb
+        version, model, csc, device_id, resume=resume, progress_cb=_dl_cb if progress_cb else None
     )
 
     # 3. Decrypt
-    decrypted_path = decrypt_firmware(version, output_path, progress_cb=progress_cb)
+    def _dec_cb(done: int, total: int):
+        if progress_cb:
+            progress_cb("decrypt", done, total)
+
+    decrypted_path = decrypt_firmware(
+        version,
+        output_path,
+        progress_cb=_dec_cb if progress_cb else None,
+    )
 
     return firmware, decrypted_path
+
+
+def cleanup_repository(
+    progress_cb: Optional[Callable[[int, int, int, int, int], None]] = None,
+) -> Dict[str, int]:
+    """Clean repository inconsistencies.
+
+    Verifies each firmware record's encrypted file exists. If missing:
+        * Deletes decrypted file if present.
+        * Deletes database record.
+
+    Args:
+        progress_cb: Optional callback invoked as
+            progress_cb(processed, total, missing_encrypted, records_deleted, decrypted_deleted)
+
+    Returns:
+        Summary statistics dict with keys:
+            total_records, missing_encrypted, decrypted_deleted, records_deleted
+    """
+    stats = {
+        "total_records": 0,
+        "missing_encrypted": 0,
+        "decrypted_deleted": 0,
+        "records_deleted": 0,
+    }
+
+    records = list(list_firmware())
+    total = len(records)
+    for idx, rec in enumerate(records, start=1):
+        stats["total_records"] += 1
+        enc_path = Path(rec.encrypted_file_path)
+        if not enc_path.is_file():
+            stats["missing_encrypted"] += 1
+            # remove decrypted file if exists
+            if rec.decrypted_file_path:
+                dec_path = Path(rec.decrypted_file_path)
+                try:
+                    if dec_path.exists():
+                        dec_path.unlink()
+                        stats["decrypted_deleted"] += 1
+                except OSError:
+                    pass
+            delete_firmware(rec.version_code)
+            stats["records_deleted"] += 1
+
+        if progress_cb:
+            progress_cb(
+                idx,
+                total,
+                stats["missing_encrypted"],
+                stats["records_deleted"],
+                stats["decrypted_deleted"],
+            )
+
+    return stats
