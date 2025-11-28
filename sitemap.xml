@@ -2,90 +2,90 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/device.detector/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/device.errors/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/device/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/device.models/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/device.reader/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/download.config/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/download.db/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/download.firmware_repository/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/download.imei_repository/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/download.service/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.client/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.config/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.crypto/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.csclist/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.decrypt/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.deviceid/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.errors/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.firmware/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.messages/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/api/fus.responses/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
     <url>
          <loc>https://nanosamfw.github.io/nanosamfw/database/schema/</loc>
-         <lastmod>2025-11-24</lastmod>
+         <lastmod>2025-11-28</lastmod>
     </url>
 </urlset>

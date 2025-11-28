@@ -684,6 +684,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#download.firmware_repository.delete_firmware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_firmware
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1921,6 +1932,98 @@ after rolling back the transaction.</p>
 <a id="__codelineno-0-174" name="__codelineno-0-174"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
 <a id="__codelineno-0-175" name="__codelineno-0-175"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;ROLLBACK;&quot;</span><span class="p">)</span>
 <a id="__codelineno-0-176" name="__codelineno-0-176"></a>            <span class="k">raise</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="download.firmware_repository.delete_firmware" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">delete_firmware</span>
+
+
+<a href="#download.firmware_repository.delete_firmware" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><span class="filename">Python</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">delete_firmware</span><span class="p">(</span><span class="n">version_code</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Delete a firmware record by version code.</p>
+<p>Removes the firmware row from the repository. This does not delete any
+files on disk; callers should remove associated files before invoking.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>version_code</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Firmware version identifier to delete.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>download\firmware_repository.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-179">179</a></span>
+<span class="normal"><a href="#__codelineno-0-180">180</a></span>
+<span class="normal"><a href="#__codelineno-0-181">181</a></span>
+<span class="normal"><a href="#__codelineno-0-182">182</a></span>
+<span class="normal"><a href="#__codelineno-0-183">183</a></span>
+<span class="normal"><a href="#__codelineno-0-184">184</a></span>
+<span class="normal"><a href="#__codelineno-0-185">185</a></span>
+<span class="normal"><a href="#__codelineno-0-186">186</a></span>
+<span class="normal"><a href="#__codelineno-0-187">187</a></span>
+<span class="normal"><a href="#__codelineno-0-188">188</a></span>
+<span class="normal"><a href="#__codelineno-0-189">189</a></span>
+<span class="normal"><a href="#__codelineno-0-190">190</a></span>
+<span class="normal"><a href="#__codelineno-0-191">191</a></span>
+<span class="normal"><a href="#__codelineno-0-192">192</a></span>
+<span class="normal"><a href="#__codelineno-0-193">193</a></span>
+<span class="normal"><a href="#__codelineno-0-194">194</a></span>
+<span class="normal"><a href="#__codelineno-0-195">195</a></span>
+<span class="normal"><a href="#__codelineno-0-196">196</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-179" name="__codelineno-0-179"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_firmware</span><span class="p">(</span><span class="n">version_code</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Delete a firmware record by version code.</span>
+<a id="__codelineno-0-181" name="__codelineno-0-181"></a>
+<a id="__codelineno-0-182" name="__codelineno-0-182"></a><span class="sd">    Removes the firmware row from the repository. This does not delete any</span>
+<a id="__codelineno-0-183" name="__codelineno-0-183"></a><span class="sd">    files on disk; callers should remove associated files before invoking.</span>
+<a id="__codelineno-0-184" name="__codelineno-0-184"></a>
+<a id="__codelineno-0-185" name="__codelineno-0-185"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-186" name="__codelineno-0-186"></a><span class="sd">        version_code: Firmware version identifier to delete.</span>
+<a id="__codelineno-0-187" name="__codelineno-0-187"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-188" name="__codelineno-0-188"></a>    <span class="n">sql</span> <span class="o">=</span> <span class="s2">&quot;DELETE FROM firmware WHERE version_code=?;&quot;</span>
+<a id="__codelineno-0-189" name="__codelineno-0-189"></a>    <span class="k">with</span> <span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<a id="__codelineno-0-190" name="__codelineno-0-190"></a>        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;BEGIN;&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-191" name="__codelineno-0-191"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-192" name="__codelineno-0-192"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="p">(</span><span class="n">version_code</span><span class="p">,))</span>
+<a id="__codelineno-0-193" name="__codelineno-0-193"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;COMMIT;&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-194" name="__codelineno-0-194"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-0-195" name="__codelineno-0-195"></a>            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;ROLLBACK;&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-196" name="__codelineno-0-196"></a>            <span class="k">raise</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
