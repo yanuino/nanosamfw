@@ -21,7 +21,7 @@ import pyperclip
 
 from device import DeviceNotFoundError, read_device_info_at
 from device.errors import DeviceError
-from download import check_firmware, cleanup_repository, download_and_decrypt, init_db
+from download import check_and_prepare_firmware, cleanup_repository, download_and_decrypt, init_db
 from download.config import PATHS
 from fus.errors import FOTAError, InformError
 
@@ -630,17 +630,95 @@ class FirmwareDownloaderApp(ctk.CTk):
                     )
                     self.update_status("Device detected! Checking firmware...")
 
-                    # Check for firmware via FOTA
+                    # Check for firmware via FOTA and repository cache
                     try:
                         self._log("info", f"Checking FOTA for {device.model}/{device.sales_code}")
-                        latest = check_firmware(device.model, device.sales_code, device.imei)
-                        self._log("info", f"FOTA returned version: {latest}")
+                        latest, is_cached = check_and_prepare_firmware(
+                            device.model, device.sales_code, device.imei, device.firmware_version
+                        )
+                        self._log("info", f"FOTA returned version: {latest} (cached: {is_cached})")
 
                         if latest == device.firmware_version:
                             msg = f"Firmware already latest version: {latest}"
                             self._log("info", msg)
                             self.update_status("Device connected")
                             self.update_progress_message(msg, "success")
+                        elif is_cached:
+                            # Firmware already downloaded, just decrypt and extract
+                            msg = f"Firmware {latest} found in repository. Preparing..."
+                            self._log("info", msg)
+                            self.update_status("Device connected - Preparing cached firmware")
+                            self.update_progress_message(msg, "info")
+
+                            self.download_in_progress = True
+
+                            def progress_cb(stage: str, done: int, total: int):
+                                self.update_progress(stage, done, total)
+
+                            try:
+                                # Use cached firmware - will skip download
+                                firmware, decrypted = download_and_decrypt(
+                                    device.model,
+                                    device.sales_code,
+                                    device.imei,
+                                    device.firmware_version,
+                                    resume=True,
+                                    progress_cb=progress_cb,
+                                )
+
+                                msg = f"Cached firmware ready! Version: {firmware.version_code}"
+                                self._log("info", f"{msg} decrypted to {decrypted}")
+
+                                # Extract firmware (same logic as download path)
+                                try:
+                                    decrypted_path = Path(decrypted)
+                                    if decrypted_path.exists() and decrypted_path.suffix in [
+                                        ".zip",
+                                        ".ZIP",
+                                    ]:
+                                        self.update_status("Device connected - Extracting firmware")
+                                        unzip_dir = decrypted_path.parent / decrypted_path.stem
+                                        unzip_dir.mkdir(parents=True, exist_ok=True)
+
+                                        with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
+                                            members = zip_ref.namelist()
+                                            total_files = len(members)
+                                            for idx, member in enumerate(members, 1):
+                                                zip_ref.extract(member, unzip_dir)
+                                                self.update_progress("extract", idx, total_files)
+
+                                        self._log(
+                                            "info", f"Extracted cached firmware to {unzip_dir}"
+                                        )
+                                        self._populate_component_entries(unzip_dir)
+                                        msg = f"Firmware ready! Version: {firmware.version_code}"
+                                except zipfile.BadZipFile:
+                                    self._log("error", "Cached file is not a valid ZIP archive")
+                                except Exception as ex:
+                                    self._log("error", f"Extraction failed: {ex}")
+
+                                self.update_status("Device connected")
+                                self.update_progress_message(msg, "success")
+                                self.download_in_progress = False
+
+                            except InformError.BadStatus as ex:
+                                status_msg = str(ex)
+                                if "400" in status_msg:
+                                    msg = "Please update via OTA (Over-The-Air)"
+                                    self._log("warning", "FUS error 400: Firmware not available")
+                                    color = "warning"
+                                elif "408" in status_msg:
+                                    msg = "Invalid model, CSC, or IMEI. Please check device information"
+                                    self._log("error", f"FUS error 408: {msg}")
+                                    color = "error"
+                                else:
+                                    msg = f"FUS server error: {ex}"
+                                    self._log("error", msg)
+                                    color = "error"
+
+                                self.update_status("Device connected")
+                                self.update_progress_message(msg, color)
+                                self.download_in_progress = False
                         else:
                             # Download firmware via FUS
                             self.download_in_progress = True
@@ -660,6 +738,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                                     device.model,
                                     device.sales_code,
                                     device.imei,
+                                    device.firmware_version,
                                     resume=True,
                                     progress_cb=progress_cb,
                                 )

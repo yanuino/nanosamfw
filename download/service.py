@@ -32,41 +32,57 @@ from .firmware_repository import (
 from .imei_repository import add_imei_event
 
 
-def check_firmware(model: str, csc: str, device_id: str) -> str:
-    """Check latest available firmware version via FOTA.
+def check_and_prepare_firmware(
+    model: str,
+    csc: str,
+    device_id: str,
+    current_firmware: str,  # noqa: ARG001 - Reserved for future comparison logic
+) -> tuple[str, bool]:
+    """Check latest firmware via FOTA and determine if cached in repository.
 
-    Queries Samsung FOTA servers for the latest firmware version and logs
-    the request to imei_log database.
+    Always queries Samsung FOTA for latest version. Logs to imei_log with
+    status_fus="unknown" (no FUS query yet). Then checks firmware table
+    to see if that version is already downloaded.
 
     Args:
         model: Device model identifier (e.g., SM-G998B).
         csc: Country Specific Code.
         device_id: Device IMEI or serial number.
+        current_firmware: Current device firmware version (for logging/comparison).
 
     Returns:
-        Normalized firmware version string (4-part format: AAA/BBB/CCC/DDD).
+        (latest_version, is_cached): Latest version from FOTA and whether
+            it exists in local repository.
 
     Raises:
-        FUSError: If version lookup fails.
+        FOTAError: If FOTA query fails.
 
     Example:
-        version = check_firmware("SM-A146P", "EUX", "352976245060954")
-        print(f"Latest: {version}")
+        latest, cached = check_and_prepare_firmware(
+            "SM-A146P", "EUX", "352976245060954", "A146PXXS6CXK3/..."
+        )
+        if cached:
+            print(f"Version {latest} already downloaded")
     """
+    # 1. Always query FOTA for latest version
     version = get_latest_version(model, csc)
     version_norm = normalize_vercode(version)
 
-    # Log FOTA check to database
+    # 2. Log device detection with FOTA result (status_fus="unknown" - no FUS download yet)
     add_imei_event(
         imei=device_id,
         model=model,
         csc=csc,
         version_code=version_norm,
-        status_fus="ok",
-        status_upgrade="unknown",
+        status_fus="unknown",  # FUS download not attempted yet
+        status_upgrade="unknown",  # Firmware flashing not implemented
     )
 
-    return version_norm
+    # 3. Check if this specific version exists in repository
+    cached = find_firmware(version_norm)
+    is_cached = cached is not None and Path(cached.encrypted_file_path).exists()
+
+    return version_norm, is_cached
 
 
 def get_or_download_firmware(
@@ -164,16 +180,6 @@ def get_or_download_firmware(
     )
     upsert_firmware(rec)
 
-    # Log download to IMEI log
-    add_imei_event(
-        imei=device_id,
-        model=model,
-        csc=csc,
-        version_code=version_norm,
-        status_fus="ok",
-        status_upgrade="ok",
-    )
-
     return rec
 
 
@@ -241,6 +247,7 @@ def download_and_decrypt(
     model: str,
     csc: str,
     device_id: str,
+    current_firmware: str,
     version: Optional[str] = None,
     *,
     output_path: Optional[str] = None,
@@ -250,9 +257,10 @@ def download_and_decrypt(
     """Complete workflow: check FOTA, download, and decrypt firmware.
 
     Performs the full workflow:
-    1. Resolve firmware version (FOTA if not specified)
-    2. Download encrypted firmware into repository (with resume support)
+    1. Query FOTA for latest version and check repository cache
+    2. Download encrypted firmware if not cached (with resume support)
     3. Decrypt firmware to output directory
+    4. Update imei_log with FUS download status
 
     A single optional ``progress_cb`` is invoked for both stages with:
         progress_cb(stage, done_bytes, total_bytes)
@@ -262,7 +270,8 @@ def download_and_decrypt(
         model: Device model identifier.
         csc: Country Specific Code (region).
         device_id: Device IMEI or serial/blank for download mode.
-        version: Specific version to fetch; if None latest is used.
+        current_firmware: Current device firmware version.
+        version: Specific version to fetch; if None latest from FOTA is used.
         output_path: Optional explicit decrypted output path.
         resume: Resume partial downloads when True.
         progress_cb: Unified callback for both stages.
@@ -270,9 +279,9 @@ def download_and_decrypt(
     Returns:
         (FirmwareRecord, decrypted_file_path)
     """
-    # 1. Resolve version
+    # 1. Resolve version and check cache
     if not version:
-        version = check_firmware(model, csc, device_id)
+        version, _is_cached = check_and_prepare_firmware(model, csc, device_id, current_firmware)
     else:
         version = normalize_vercode(version)
 
@@ -283,6 +292,18 @@ def download_and_decrypt(
 
     firmware = get_or_download_firmware(
         version, model, csc, device_id, resume=resume, progress_cb=_dl_cb if progress_cb else None
+    )
+
+    # Update imei_log with successful FUS download status
+    # Note: This updates the most recent entry for this device/version
+    # If firmware was cached, this still logs "ok" as repository access succeeded
+    add_imei_event(
+        imei=device_id,
+        model=model,
+        csc=csc,
+        version_code=version,
+        status_fus="ok",  # FUS download/retrieval succeeded
+        status_upgrade="unknown",  # Firmware flashing not implemented
     )
 
     # 3. Decrypt

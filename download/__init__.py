@@ -15,12 +15,12 @@ Architecture:
     - Configuration: Customizable paths for firmware and decrypted files
 
 Main Components:
-    - check_firmware: Query FOTA for latest version
+    - check_and_prepare_firmware: Query FOTA + check repository cache
     - get_or_download_firmware: Smart download (checks repository first)
     - decrypt_firmware: Decrypt from repository to configurable path
     - download_and_decrypt: Complete workflow convenience function
     - FirmwareRecord: Repository model with all InformInfo metadata
-    - Database utilities: SQLite initialization, health checks, and repair
+    - Database utilities: SQLite initialization, health checks, and cleanup
 
 Features:
     - Centralized firmware repository (no per-model/CSC duplication)
@@ -32,12 +32,14 @@ Features:
     - Progress callback support for UI integration
 
 Example:
-    Check latest firmware version::
+    Check latest firmware version and repository cache::
 
-        from download import check_firmware
+        from download import check_and_prepare_firmware
 
-        version = check_firmware("SM-A146P", "EUX", "352976245060954")
-        print(f"Latest: {version}")
+        version, is_cached = check_and_prepare_firmware(
+            "SM-A146P", "EUX", "352976245060954", "current_version"
+        )
+        print(f"Latest: {version}, Already downloaded: {is_cached}")
 
     Download firmware to repository::
 
@@ -58,15 +60,15 @@ Example:
         from download import decrypt_firmware
 
         decrypted_path = decrypt_firmware(version)
-        print(f"Decrypted: {decrypted_path}")
-
     Complete workflow::
 
         from download import download_and_decrypt
 
         firmware, decrypted = download_and_decrypt(
-            "SM-A146P", "EUX", "352976245060954"
+            "SM-A146P", "EUX", "352976245060954", "current_version"
         )
+        print(f"Version: {firmware.version_code}")
+        print(f"File: {decrypted}")
         print(f"Version: {firmware.version_code}")
         print(f"File: {decrypted}")
 
@@ -108,7 +110,7 @@ from .firmware_repository import (
     update_decrypted_path,
 )
 from .service import (
-    check_firmware,
+    check_and_prepare_firmware,
     cleanup_repository,
     decrypt_firmware,
     download_and_decrypt,

@@ -46,7 +46,9 @@ Firmware repository storing one record per firmware version with all metadata fr
 
 ### imei_log
 
-Logs IMEI-based firmware query and upgrade operations with status tracking.
+Logs IMEI-based firmware queries with status tracking. Each device detection results in two log entries:
+1. Initial FOTA query (status_fus="unknown")
+2. After firmware obtained from FUS or cache (status_fus="ok")
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -54,11 +56,11 @@ Logs IMEI-based firmware query and upgrade operations with status tracking.
 | `imei` | TEXT | NOT NULL | Device IMEI number |
 | `model` | TEXT | NOT NULL | Device model identifier |
 | `csc` | TEXT | NOT NULL, CHECK length | Country Specific Code (3-5 chars, supports multi-CSC like EUX/FTM) |
-| `version_code` | TEXT | NOT NULL, CHECK format | Firmware version in AAA/BBB/CCC/DDD format |
-| `status_fus` | TEXT | NOT NULL, DEFAULT 'unknown' | FUS query status (ok, error, denied, unauthorized, throttled, unknown) |
-| `status_upgrade` | TEXT | NOT NULL, DEFAULT 'unknown' | Upgrade operation status (queued, in_progress, ok, failed, skipped, unknown) |
+| `version_code` | TEXT | NOT NULL, CHECK format | Firmware version from FOTA in AAA/BBB/CCC/DDD format |
+| `status_fus` | TEXT | NOT NULL, DEFAULT 'unknown' | FUS operation status (unknown=FOTA only, ok=firmware obtained, error/denied/unauthorized/throttled=FUS errors) |
+| `status_upgrade` | TEXT | NOT NULL, DEFAULT 'unknown' | Reserved for future firmware flashing operations (currently always 'unknown') |
 | `created_at` | TEXT | NOT NULL, DEFAULT (now) | ISO 8601 timestamp of log entry creation |
-| `upgrade_at` | TEXT | - | ISO 8601 timestamp when upgrade operation occurred |
+| `upgrade_at` | TEXT | - | Reserved for future firmware flashing timestamp (currently always NULL) |
 
 **Constraints:**
 
@@ -66,6 +68,16 @@ Logs IMEI-based firmware query and upgrade operations with status tracking.
 - `status_upgrade` must be one of: `queued`, `in_progress`, `ok`, `failed`, `skipped`, `unknown`
 - `version_code` must contain exactly 3 forward slashes (AAA/BBB/CCC/DDD format)
 - `csc` length must be between 3 and 5 characters
+
+**Status Flow:**
+```
+Device Detected → check_and_prepare_firmware()
+  ├─ Log #1: status_fus="unknown" (FOTA queried, FUS not called yet)
+  └─ Check firmware table cache
+
+Firmware Obtained → download_and_decrypt()
+  └─ Log #2: status_fus="ok" (firmware downloaded or retrieved from cache)
+```
 
 #### Indexes
 

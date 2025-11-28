@@ -51,10 +51,10 @@ nanosamfw uses a three-layer architecture for clean separation of concerns:
 ┌──────────────────────────────────────────────────────┐
 │                   Service Layer                      │
 ├──────────────────────────────────────────────────────┤
-│ check_firmware()          │ FOTA query + IMEI log    │
-│ get_or_download_firmware()│ Smart download           │
-│ decrypt_firmware()        │ Repository → decrypted   │
-│ download_and_decrypt()    │ Full workflow            │
+│ check_and_prepare_firmware() │ FOTA + cache check   │
+│ get_or_download_firmware()   │ Smart download       │
+│ decrypt_firmware()           │ Repository → decrypt │
+│ download_and_decrypt()       │ Full workflow        │
 └──────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -71,7 +71,7 @@ nanosamfw uses a three-layer architecture for clean separation of concerns:
 ├──────────────────────────────────────────────────────┤
 │ firmware.db              │                           │
 │  ├─ firmware (repository)│ version → file + metadata │
-│  └─ imei_log (tracking)  │ requests + operations     │
+│  └─ imei_log (tracking)  │ FOTA queries + FUS status │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -105,11 +105,13 @@ print(f"Decrypted file: {decrypted}")
 ### Separate Operations
 
 ```python
-from download import check_firmware, get_or_download_firmware, decrypt_firmware
+from download import check_and_prepare_firmware, get_or_download_firmware, decrypt_firmware
 
-# 1. Check FOTA for latest version
-version = check_firmware("SM-G998B", "EUX", "352976245060954")
-print(f"Latest: {version}")
+# 1. Check FOTA for latest version and repository cache
+version, is_cached = check_and_prepare_firmware(
+    "SM-G998B", "EUX", "352976245060954", "current_firmware_version"
+)
+print(f"Latest: {version}, Cached: {is_cached}")
 
 # 2. Download to repository (if not already present)
 firmware = get_or_download_firmware(version, "SM-G998B", "EUX", "352976245060954")
@@ -139,26 +141,31 @@ for fw in list_firmware(limit=10):
 ### Device Integration
 
 ```python
-from device import read_device_info
-from download import check_firmware, download_and_decrypt
+from device import read_device_info_at
+from download import check_and_prepare_firmware, download_and_decrypt
 
 # Auto-detect connected device (requires pyserial)
-device = read_device_info()
+device = read_device_info_at()
 print(f"Connected: {device.model} - IMEI: {device.imei}")
-print(f"Current firmware: {device.pda_version}")
+print(f"Current firmware: {device.firmware_version}")
 
-# Check for updates
-latest = check_firmware(device.model, device.region, device.imei)
-print(f"Latest firmware: {latest}")
+# Check FOTA for latest version and repository cache
+latest, is_cached = check_and_prepare_firmware(
+    device.model, device.sales_code, device.imei, device.firmware_version
+)
+print(f"Latest firmware: {latest}, Already downloaded: {is_cached}")
 
 # Download if update available
-if latest != device.pda_version:
+if latest != device.firmware_version:
     firmware, decrypted = download_and_decrypt(
         model=device.model,
-        csc=device.region,
-        device_id=device.imei
+        csc=device.sales_code,
+        device_id=device.imei,
+        current_firmware=device.firmware_version
     )
     print(f"Downloaded: {decrypted}")
+else:
+    print("Already up to date")
 ```
 
 ## Requirements
