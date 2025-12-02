@@ -118,13 +118,19 @@ class FirmwareDownloaderApp(ctk.CTk):
         threading.Thread(target=self._perform_cleanup, daemon=True).start()
 
     def _set_app_icon(self) -> None:
-        """Configure the window/taskbar icon from the AppIcons folder.
+        """Configure the window/taskbar icon using importlib.resources.
 
         Prefers `.ico` on Windows, otherwise falls back to a PNG.
-        Keeps a reference to the image to prevent garbage collection.
+        Uses importlib.resources for reliable packaging.
         """
         try:
-            icons_dir = Path(__file__).resolve().parent.parent / "AppIcons"
+            import tempfile
+            from importlib.resources import files
+
+            icons = files('AppIcons') if files('AppIcons').is_dir() else None
+            if not icons:
+                return
+
             if sys.platform.startswith("win"):
                 # Help Windows taskbar use the same icon
                 try:
@@ -132,44 +138,37 @@ class FirmwareDownloaderApp(ctk.CTk):
                 except (AttributeError, OSError):
                     pass
 
-                ico_path = icons_dir / "app_icon.ico"
-                if not ico_path.exists():
-                    # pick any .ico if named differently
-                    icos = list(icons_dir.glob("*.ico"))
-                    if icos:
-                        ico_path = icos[0]
-                if ico_path.exists():
+                # Try app_icon.ico or any .ico
+                ico_candidates = ['app_icon.ico'] + [
+                    f.name for f in icons.iterdir() if f.name.endswith('.ico')
+                ]
+                for ico_name in ico_candidates:
                     try:
-                        self.iconbitmap(default=str(ico_path))
+                        ico_data = (icons / ico_name).read_bytes()
+                        # iconbitmap needs a file path, write to temp
+                        with tempfile.NamedTemporaryFile(suffix='.ico', delete=False) as tmp:
+                            tmp.write(ico_data)
+                            tmp_path = tmp.name
+                        self.iconbitmap(default=tmp_path)
+                        # Keep temp file reference for cleanup
+                        self._icon_tmp = tmp_path  # type: ignore[attr-defined]
                         return
-                    except (tk.TclError, OSError):
-                        # Fallback to PNG if iconbitmap fails
-                        pass
+                    except (KeyError, FileNotFoundError, tk.TclError, OSError):
+                        continue
 
-            # Non-Windows or fallback path: use a PNG
-            # Prefer a medium/large size if available
-            png_candidates = [
-                icons_dir / "256.png",
-                icons_dir / "128.png",
-                icons_dir / "64.png",
-                icons_dir / "32.png",
-            ]
-            png_path = next((p for p in png_candidates if p.exists()), None)
-            if not png_path:
-                # last resort: any PNG
-                any_png = list(icons_dir.glob("*.png"))
-                png_path = any_png[0] if any_png else None
-
-            if png_path and png_path.exists():
+            # Non-Windows or fallback: use PNG
+            png_candidates = ['256.png', '128.png', '64.png', '32.png']
+            for png_name in png_candidates:
                 try:
-                    img = tk.PhotoImage(file=str(png_path))
-                    # True applies to both toplevel and taskbar where supported
+                    png_data = (icons / png_name).read_bytes()
+                    img = tk.PhotoImage(data=png_data)
                     self.iconphoto(True, img)
-                    # Keep reference
                     self._icon_img = img  # type: ignore[attr-defined]
-                except (tk.TclError, OSError):
-                    pass
-        except (tk.TclError, OSError, AttributeError):
+                    return
+                except (KeyError, FileNotFoundError, tk.TclError, OSError):
+                    continue
+
+        except (ImportError, tk.TclError, OSError, AttributeError):
             # Never block UI due to icon issues
             pass
 

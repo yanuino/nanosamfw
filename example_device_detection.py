@@ -21,7 +21,7 @@ SPDX-License-Identifier: MIT
 from tqdm import tqdm
 
 from device import DeviceNotFoundError, read_device_info_at
-from download import check_firmware, decrypt_firmware, get_or_download_firmware, init_db
+from download import check_and_prepare_firmware, decrypt_firmware, get_or_download_firmware, init_db
 
 
 def main() -> None:
@@ -72,8 +72,11 @@ def main() -> None:
     print("🔎 Checking for firmware updates...")
     try:
         # Use device IMEI for firmware query
-        latest_version = check_firmware(
-            model=device.model, csc=device.sales_code, device_id=device.imei
+        latest_version, is_update = check_and_prepare_firmware(
+            model=device.model,
+            csc=device.sales_code,
+            device_id=device.imei,
+            current_firmware=device.firmware_version,
         )
         print(f"✅ Latest firmware: {latest_version}")
         print()
