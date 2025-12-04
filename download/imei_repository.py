@@ -36,6 +36,7 @@ class IMEIEvent:
 
     Attributes:
         id: Database record ID, or None for new records.
+        session_id: Application session identifier (changes per app launch).
         imei: Device IMEI number.
         model: Device model identifier.
         csc: Country Specific Code.
@@ -43,10 +44,12 @@ class IMEIEvent:
         status_fus: FUS query status (ok, error, denied, unauthorized, throttled, unknown).
         status_upgrade: Upgrade operation status (queued, in_progress, ok, failed, skipped, unknown).
         created_at: ISO 8601 UTC timestamp of event creation, or None.
+        updated_at: ISO 8601 UTC timestamp of last update, or None.
         upgrade_at: ISO 8601 UTC timestamp of upgrade operation, or None.
     """
 
     id: int | None
+    session_id: str
     imei: str
     model: str
     csc: str
@@ -54,55 +57,98 @@ class IMEIEvent:
     status_fus: str = "unknown"  # ok/error/denied/unauthorized/throttled/unknown
     status_upgrade: str = "unknown"  # queued/in_progress/ok/failed/skipped/unknown
     created_at: str | None = None  # ISO-8601 UTC
+    updated_at: str | None = None  # ISO-8601 UTC
     upgrade_at: str | None = None  # ISO-8601 UTC
 
 
-def add_imei_event(
+def upsert_imei_event(
     *,
+    session_id: str,
     imei: str,
     model: str,
     csc: str,
     version_code: str,
-    status_fus: str = "ok",
+    status_fus: str = "unknown",
     status_upgrade: str = "unknown",
     upgrade_at: str | None = None,
 ) -> int:
-    """Insert a new IMEI event record.
+    """Insert or update IMEI event record for current session.
 
-    Creates a new IMEI event log entry. No uniqueness constraints are enforced;
-    all events are kept for full traceability.
+    Creates a new IMEI event log entry, or updates the existing one if a record
+    with the same session_id and imei already exists. This ensures one record
+    per device per application session.
 
     Args:
+        session_id: Application session identifier (generated at app launch).
         imei: Device IMEI number.
         model: Device model identifier.
         csc: Country Specific Code.
         version_code: Firmware version identifier (format: AAA/BBB/CCC/DDD).
-        status_fus: FUS query status. Defaults to "ok".
+        status_fus: FUS query status. Defaults to "unknown".
         status_upgrade: Upgrade operation status. Defaults to "unknown".
         upgrade_at: Optional ISO 8601 UTC timestamp of upgrade operation.
 
     Returns:
-        int: Auto-incremented database ID of the inserted record.
+        int: Database ID of the inserted or updated record.
     """
     sql = """
     INSERT INTO imei_log
-        (imei, model, csc, version_code, status_fus, status_upgrade, created_at, upgrade_at)
+        (session_id, imei, model, csc, version_code, status_fus, status_upgrade, created_at, updated_at, upgrade_at)
     VALUES
-        (:imei, :model, :csc, :version_code, :status_fus, :status_upgrade, :created_at, :upgrade_at);
+        (:session_id, :imei, :model, :csc, :version_code, :status_fus, :status_upgrade, :created_at, :updated_at, :upgrade_at)
+    ON CONFLICT(session_id, imei) DO UPDATE SET
+        model=excluded.model,
+        csc=excluded.csc,
+        version_code=excluded.version_code,
+        status_fus=excluded.status_fus,
+        status_upgrade=excluded.status_upgrade,
+        updated_at=excluded.updated_at,
+        upgrade_at=excluded.upgrade_at;
     """
+    now = _iso_now()
     params = {
+        "session_id": session_id,
         "imei": imei,
         "model": model,
         "csc": csc,
         "version_code": version_code,
         "status_fus": status_fus,
         "status_upgrade": status_upgrade,
-        "created_at": _iso_now(),
+        "created_at": now,
+        "updated_at": now,
         "upgrade_at": upgrade_at,
     }
     with connect() as conn:
         cur = conn.execute(sql, params)
         return int(cur.lastrowid)  # type: ignore
+
+
+# Backward compatibility alias (deprecated - use upsert_imei_event with session_id)
+def add_imei_event(
+    *,
+    imei: str,
+    model: str,
+    csc: str,
+    version_code: str,
+    status_fus: str = "unknown",
+    status_upgrade: str = "unknown",
+    upgrade_at: str | None = None,
+    session_id: str = "legacy",
+) -> int:
+    """Legacy function - use upsert_imei_event instead.
+
+    Kept for backward compatibility. New code should use upsert_imei_event.
+    """
+    return upsert_imei_event(
+        session_id=session_id,
+        imei=imei,
+        model=model,
+        csc=csc,
+        version_code=version_code,
+        status_fus=status_fus,
+        status_upgrade=status_upgrade,
+        upgrade_at=upgrade_at,
+    )
 
 
 def set_upgrade_status(id_: int, status_upgrade: str, upgrade_at: Optional[str] = None) -> None:
@@ -150,6 +196,7 @@ def list_by_imei(imei: str, *, limit: int = 200, offset: int = 0) -> Iterable[IM
         for row in conn.execute(sql, (imei, limit, offset)):
             yield IMEIEvent(
                 id=row["id"],
+                session_id=row["session_id"],
                 imei=row["imei"],
                 model=row["model"],
                 csc=row["csc"],
@@ -157,6 +204,7 @@ def list_by_imei(imei: str, *, limit: int = 200, offset: int = 0) -> Iterable[IM
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
+                updated_at=row.get("updated_at", row["created_at"]),
                 upgrade_at=row["upgrade_at"],
             )
 
@@ -208,6 +256,7 @@ def list_by_model_csc(
         ):
             yield IMEIEvent(
                 id=row["id"],
+                session_id=row["session_id"],
                 imei=row["imei"],
                 model=row["model"],
                 csc=row["csc"],
@@ -215,6 +264,7 @@ def list_by_model_csc(
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
+                updated_at=row.get("updated_at", row["created_at"]),
                 upgrade_at=row["upgrade_at"],
             )
 
@@ -268,6 +318,7 @@ def list_between_dates(
         for row in conn.execute(sql, params):
             yield IMEIEvent(
                 id=row["id"],
+                session_id=row["session_id"],
                 imei=row["imei"],
                 model=row["model"],
                 csc=row["csc"],
@@ -275,6 +326,7 @@ def list_between_dates(
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
+                updated_at=row.get("updated_at", row["created_at"]),
                 upgrade_at=row["upgrade_at"],
             )
 
@@ -302,6 +354,7 @@ def last_status_by_imei(imei: str) -> IMEIEvent | None:
             return None
         return IMEIEvent(
             id=row["id"],
+            session_id=row["session_id"],
             imei=row["imei"],
             model=row["model"],
             csc=row["csc"],
@@ -309,5 +362,6 @@ def last_status_by_imei(imei: str) -> IMEIEvent | None:
             status_fus=row["status_fus"],
             status_upgrade=row["status_upgrade"],
             created_at=row["created_at"],
+            updated_at=row.get("updated_at", row["created_at"]),
             upgrade_at=row["upgrade_at"],
         )

@@ -115,4 +115,5 @@ from .service import (
     decrypt_firmware,
     download_and_decrypt,
     get_or_download_firmware,
+    get_session_id,
 )

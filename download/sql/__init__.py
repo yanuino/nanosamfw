@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 # SQL schema definitions
+"""Embedded SQL schemas for firmware and IMEI logging."""
 
 # Embedded SQL schemas for reliable packaging
 FIRMWARE_SCHEMA = """
@@ -39,6 +40,7 @@ IMEI_LOG_SCHEMA = """
 -- IMEI events log table
 CREATE TABLE IF NOT EXISTS imei_log (
   id               INTEGER PRIMARY KEY,
+  session_id       TEXT NOT NULL,
   imei             TEXT NOT NULL,
   model            TEXT NOT NULL,
   csc              TEXT NOT NULL,
@@ -48,15 +50,22 @@ CREATE TABLE IF NOT EXISTS imei_log (
   status_upgrade   TEXT NOT NULL DEFAULT 'unknown'
                       CHECK (status_upgrade IN ('queued','in_progress','ok','failed','skipped','unknown')),
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   upgrade_at       TEXT,
 
   -- 4 parts: AAA/BBB/CCC/DDD
   CHECK ((length(version_code) - length(replace(version_code, '/', ''))) = 3),
 
   -- Permit multiple CSCs: EUX, EUX/FTM, etc.
-  CHECK (length(csc) BETWEEN 3 AND 5)
+  CHECK (length(csc) BETWEEN 3 AND 5),
+
+  -- Unique constraint: one record per session+imei
+  UNIQUE(session_id, imei)
 );
 
+
+CREATE INDEX IF NOT EXISTS idx_imei_log__session_imei
+ON imei_log (session_id, imei);
 
 CREATE INDEX IF NOT EXISTS idx_imei_log__imei_created
 ON imei_log (imei, created_at DESC);

@@ -10,6 +10,7 @@ decryption services.
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
@@ -29,7 +30,19 @@ from .firmware_repository import (
     update_decrypted_path,
     upsert_firmware,
 )
-from .imei_repository import add_imei_event
+from .imei_repository import upsert_imei_event
+
+# Generate unique session ID for this application instance
+_SESSION_ID = str(uuid.uuid4())
+
+
+def get_session_id() -> str:
+    """Get the current application session ID.
+
+    Returns:
+        str: UUID string identifying this application session.
+    """
+    return _SESSION_ID
 
 
 def check_and_prepare_firmware(
@@ -69,7 +82,8 @@ def check_and_prepare_firmware(
     version_norm = normalize_vercode(version)
 
     # 2. Log device detection with FOTA result (status_fus="unknown" - no FUS download yet)
-    add_imei_event(
+    upsert_imei_event(
+        session_id=_SESSION_ID,
         imei=device_id,
         model=model,
         csc=csc,
@@ -294,15 +308,15 @@ def download_and_decrypt(
         version, model, csc, device_id, resume=resume, progress_cb=_dl_cb if progress_cb else None
     )
 
-    # Update imei_log with successful FUS download status
-    # Note: This updates the most recent entry for this device/version
-    # If firmware was cached, this still logs "ok" as repository access succeeded
-    add_imei_event(
+    # Update log with successful firmware retrieval (whether downloaded or cached)
+    # This updates the existing session record created by check_and_prepare_firmware
+    upsert_imei_event(
+        session_id=_SESSION_ID,
         imei=device_id,
         model=model,
         csc=csc,
         version_code=version,
-        status_fus="ok",  # FUS download/retrieval succeeded
+        status_fus="ok",  # Firmware obtained successfully
         status_upgrade="unknown",  # Firmware flashing not implemented
     )
 
