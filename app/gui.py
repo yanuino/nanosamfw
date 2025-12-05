@@ -117,6 +117,7 @@ class FirmwareDownloaderApp(ctk.CTk):
         self.cleanup_details.pack(fill="x", pady=(0, 10))
 
         # Run cleanup in background thread to keep UI responsive
+        threading.Thread(target=self._perform_cleanup, daemon=True).start()
 
     def _set_app_icon(self) -> None:
         """Configure the window/taskbar icon using importlib.resources.
