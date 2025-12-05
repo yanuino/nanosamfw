@@ -337,12 +337,12 @@ class FirmwareDownloaderApp(ctk.CTk):
         comp_entries_frame = ctk.CTkFrame(components_frame)
         comp_entries_frame.pack(fill="x", padx=10, pady=(0, 10))
 
-        def _make_comp_row(row: int, label: str) -> ctk.CTkEntry:
+        def _make_comp_row(row: int, label: str, *, hidden: bool = False) -> ctk.CTkEntry:
             label_widget = ctk.CTkLabel(
                 comp_entries_frame,
                 text=label,
                 font=ctk.CTkFont(size=12, weight="bold"),
-                cursor="hand2",
+                cursor="hand2" if not hidden else "",
             )
             label_widget.grid(row=row, column=0, sticky="w", pady=4)
             entry = ctk.CTkEntry(comp_entries_frame, font=ctk.CTkFont(size=11))
@@ -351,7 +351,7 @@ class FirmwareDownloaderApp(ctk.CTk):
             entry.configure(state="disabled")
             original_fg = entry.cget("fg_color")
 
-            # Make label clickable to copy entry value to clipboard
+            # Make label clickable to copy entry value to clipboard (unless hidden)
             def _copy_to_clipboard(_e):
                 value = entry.get()
                 if value and value != "-":
@@ -364,15 +364,21 @@ class FirmwareDownloaderApp(ctk.CTk):
                     except (OSError, RuntimeError) as ex:
                         self._log("error", f"Failed to copy to clipboard: {ex}")
 
-            label_widget.bind("<Button-1>", _copy_to_clipboard)
-            entry.bind("<Button-1>", _copy_to_clipboard)
+            if not hidden:
+                label_widget.bind("<Button-1>", _copy_to_clipboard)
+                entry.bind("<Button-1>", _copy_to_clipboard)
+            else:
+                # Hide the widgets but keep them instantiated for future reuse
+                label_widget.grid_remove()
+                entry.grid_remove()
+
             return entry
 
         self.ap_entry = _make_comp_row(0, "AP")
         self.bl_entry = _make_comp_row(1, "BL")
         self.cp_entry = _make_comp_row(2, "CP")
         self.csc_entry = _make_comp_row(3, "CSC")
-        self.home_entry = _make_comp_row(4, "HOME")
+        self.home_entry = _make_comp_row(4, "HOME", hidden=True)
 
     def update_status(self, message: str):
         """Update status label with thread-safe scheduling.

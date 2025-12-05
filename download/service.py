@@ -16,7 +16,7 @@ from typing import Callable, Dict, Optional
 
 from fus.client import FUSClient
 from fus.decrypt import decrypt_file, get_v4_key_from_logic
-from fus.errors import DownloadError
+from fus.errors import DownloadError, FUSError
 from fus.firmware import get_latest_version, normalize_vercode
 from fus.messages import build_binary_inform, build_binary_init
 from fus.responses import parse_inform
@@ -293,20 +293,38 @@ def download_and_decrypt(
     Returns:
         (FirmwareRecord, decrypted_file_path)
     """
+    print(
+        f"[DEBUG] download_and_decrypt called: model={model}, csc={csc}, version={version}, device_id={device_id}, session_id={_SESSION_ID}"
+    )
     # 1. Resolve version and check cache
     if not version:
         version, _is_cached = check_and_prepare_firmware(model, csc, device_id, current_firmware)
     else:
         version = normalize_vercode(version)
+    print(f"[DEBUG] Resolved version: {version}, session_id={_SESSION_ID}")
 
     # 2. Download to repository
     def _dl_cb(done: int, total: int):
         if progress_cb:
             progress_cb("download", done, total)
 
-    firmware = get_or_download_firmware(
-        version, model, csc, device_id, resume=resume, progress_cb=_dl_cb if progress_cb else None
-    )
+    try:
+        firmware = get_or_download_firmware(
+            version, model, csc, device_id, resume=resume, progress_cb=_dl_cb if progress_cb else None
+        )
+    except FUSError:
+        # Update imei_log with error status before re-raising
+        # Catches InformError and all its subtypes (BadStatus, MissingStatus, etc.)
+        upsert_imei_event(
+            session_id=_SESSION_ID,
+            imei=device_id,
+            model=model,
+            csc=csc,
+            version_code=version,
+            status_fus="error",
+            status_upgrade="unknown",
+        )
+        raise
 
     # Update log with successful firmware retrieval (whether downloaded or cached)
     # This updates the existing session record created by check_and_prepare_firmware
