@@ -9,10 +9,12 @@ This module provides the main application window and device monitoring logic.
 import ctypes
 import logging
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
 import zipfile
+from importlib.resources import files
 from pathlib import Path
 from typing import Optional
 
@@ -115,7 +117,6 @@ class FirmwareDownloaderApp(ctk.CTk):
         self.cleanup_details.pack(fill="x", pady=(0, 10))
 
         # Run cleanup in background thread to keep UI responsive
-        threading.Thread(target=self._perform_cleanup, daemon=True).start()
 
     def _set_app_icon(self) -> None:
         """Configure the window/taskbar icon using importlib.resources.
@@ -124,8 +125,7 @@ class FirmwareDownloaderApp(ctk.CTk):
         Uses importlib.resources for reliable packaging.
         """
         try:
-            import tempfile
-            from importlib.resources import files
+            icons = files('AppIcons') if files('AppIcons').is_dir() else None
 
             icons = files('AppIcons') if files('AppIcons').is_dir() else None
             if not icons:
@@ -139,9 +139,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                     pass
 
                 # Try app_icon.ico or any .ico
-                ico_candidates = ['app_icon.ico'] + [
-                    f.name for f in icons.iterdir() if f.name.endswith('.ico')
-                ]
+                ico_candidates = ['app_icon.ico'] + [f.name for f in icons.iterdir() if f.name.endswith('.ico')]
                 for ico_name in ico_candidates:
                     try:
                         ico_data = (icons / ico_name).read_bytes()
@@ -238,6 +236,8 @@ class FirmwareDownloaderApp(ctk.CTk):
 
     def _create_widgets(self):
         """Create and layout all UI widgets."""
+        # pylint: disable=W0201  # Allow setting instance attributes outside __init__ for Tkinter widgets
+
         # Main container with padding
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
@@ -269,9 +269,9 @@ class FirmwareDownloaderApp(ctk.CTk):
         device_frame = ctk.CTkFrame(main_frame)
         device_frame.pack(fill="x", pady=10)
 
-        ctk.CTkLabel(
-            device_frame, text="Device Information:", font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(anchor="w", padx=10, pady=(10, 5))
+        ctk.CTkLabel(device_frame, text="Device Information:", font=ctk.CTkFont(size=14, weight="bold")).pack(
+            anchor="w", padx=10, pady=(10, 5)
+        )
 
         # Grid for entries
         entries_frame = ctk.CTkFrame(device_frame)
@@ -300,18 +300,16 @@ class FirmwareDownloaderApp(ctk.CTk):
         progress_frame = ctk.CTkFrame(main_frame)
         progress_frame.pack(fill="x", pady=10)
 
-        ctk.CTkLabel(
-            progress_frame, text="Progress:", font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(anchor="w", padx=10, pady=(10, 5))
+        ctk.CTkLabel(progress_frame, text="Progress:", font=ctk.CTkFont(size=14, weight="bold")).pack(
+            anchor="w", padx=10, pady=(10, 5)
+        )
 
         # Unified progress bar (download + decrypt)
         self.download_progress_bar = ctk.CTkProgressBar(progress_frame)
         self.download_progress_bar.pack(fill="x", padx=10, pady=(0, 2))
         self.download_progress_bar.set(0)
         self.download_progress_bar.pack_forget()
-        self.download_progress_label = ctk.CTkLabel(
-            progress_frame, text="", font=ctk.CTkFont(size=11)
-        )
+        self.download_progress_label = ctk.CTkLabel(progress_frame, text="", font=ctk.CTkFont(size=11))
         self.download_progress_label.pack(anchor="w", padx=10, pady=(0, 8))
         self.download_progress_label.pack_forget()
 
@@ -330,9 +328,9 @@ class FirmwareDownloaderApp(ctk.CTk):
         components_frame = ctk.CTkFrame(main_frame)
         components_frame.pack(fill="x", pady=10)
 
-        ctk.CTkLabel(
-            components_frame, text="Firmware Components:", font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(anchor="w", padx=10, pady=(10, 5))
+        ctk.CTkLabel(components_frame, text="Firmware Components:", font=ctk.CTkFont(size=14, weight="bold")).pack(
+            anchor="w", padx=10, pady=(10, 5)
+        )
 
         # Grid for component entries
         comp_entries_frame = ctk.CTkFrame(components_frame)
@@ -353,7 +351,7 @@ class FirmwareDownloaderApp(ctk.CTk):
             original_fg = entry.cget("fg_color")
 
             # Make label clickable to copy entry value to clipboard
-            def _copy_to_clipboard(e):
+            def _copy_to_clipboard(_e):
                 value = entry.get()
                 if value and value != "-":
                     try:
@@ -362,7 +360,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                         # Brief visual feedback
                         entry.configure(fg_color="#2CC985")
                         self.after(200, lambda: entry.configure(fg_color=original_fg))
-                    except Exception as ex:
+                    except (OSError, RuntimeError) as ex:
                         self._log("error", f"Failed to copy to clipboard: {ex}")
 
             label_widget.bind("<Button-1>", _copy_to_clipboard)
@@ -459,7 +457,7 @@ class FirmwareDownloaderApp(ctk.CTk):
         for file_path in unzip_dir.iterdir():
             if file_path.is_file():
                 name = file_path.name
-                for prefix in components.keys():
+                for prefix in components:
                     if name.startswith(prefix):
                         components[prefix] = str(file_path.resolve())
                         break
@@ -599,6 +597,7 @@ class FirmwareDownloaderApp(ctk.CTk):
 
     # stop_monitoring removed (no longer user-invoked buttons). Kept minimal for future use.
     def stop_monitoring(self):  # pragma: no cover
+        """Stop device monitoring."""
         self.monitoring = False
         self.update_status("Monitoring stopped")
         self.update_progress_message("Monitoring stopped", "info")
@@ -661,6 +660,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                                     device.sales_code,
                                     device.imei,
                                     device.firmware_version,
+                                    version=latest,  # Pass version to avoid duplicate FOTA query
                                     resume=True,
                                     progress_cb=progress_cb,
                                 )
@@ -686,14 +686,12 @@ class FirmwareDownloaderApp(ctk.CTk):
                                                 zip_ref.extract(member, unzip_dir)
                                                 self.update_progress("extract", idx, total_files)
 
-                                        self._log(
-                                            "info", f"Extracted cached firmware to {unzip_dir}"
-                                        )
+                                        self._log("info", f"Extracted cached firmware to {unzip_dir}")
                                         self._populate_component_entries(unzip_dir)
                                         msg = f"Firmware ready! Version: {firmware.version_code}"
                                 except zipfile.BadZipFile:
                                     self._log("error", "Cached file is not a valid ZIP archive")
-                                except Exception as ex:
+                                except (OSError, IOError, ValueError) as ex:
                                     self._log("error", f"Extraction failed: {ex}")
 
                                 self.update_status("Device connected")
@@ -738,6 +736,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                                     device.sales_code,
                                     device.imei,
                                     device.firmware_version,
+                                    version=latest,  # Pass version to avoid duplicate FOTA query
                                     resume=True,
                                     progress_cb=progress_cb,
                                 )
@@ -766,12 +765,10 @@ class FirmwareDownloaderApp(ctk.CTk):
 
                                         self._log("info", f"Extracted firmware to {unzip_dir}")
                                         self._populate_component_entries(unzip_dir)
-                                        msg = (
-                                            f"Firmware extracted! Version: {firmware.version_code}"
-                                        )
+                                        msg = f"Firmware extracted! Version: {firmware.version_code}"
                                 except zipfile.BadZipFile:
                                     self._log("error", "Downloaded file is not a valid ZIP archive")
-                                except Exception as ex:
+                                except (OSError, IOError, ValueError) as ex:
                                     self._log("error", f"Extraction failed: {ex}")
 
                                 self.update_status("Device connected")

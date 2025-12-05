@@ -12,12 +12,9 @@ Copyright (c) 2024 nanosamfw contributors
 SPDX-License-Identifier: MIT
 """
 
-from device import (
-    DeviceNotFoundError,
-    DeviceReadError,
-    detect_download_mode_devices,
-    read_device_info,
-)
+# pylint: disable=all  # Disable informational messages for this file due to draft code
+
+from device import DeviceNotFoundError, DeviceReadError, detect_download_mode_devices, read_device_info
 
 
 def main():

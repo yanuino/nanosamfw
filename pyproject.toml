@@ -1,4 +1,6 @@
 [project]
+name = "nanosamfw"
+version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "requests>=2.32.5",
@@ -9,13 +11,13 @@ dependencies = [
 ]
 
 [tool.black]
-line-length = 100
+line-length = 120
 # target-version = ["py314"]
 skip-string-normalization = true
 
 [tool.isort]
 profile = "black"
-line_length = 100
+line_length = 120
 skip_gitignore = true
 combine_as_imports = true
 known_first_party = ["device", "download", "fus", "app"]
@@ -28,7 +30,7 @@ ignore = ["CVS", "__pycache__", ".venv", "venv", "AppIcons", "downloads", "firmw
 # source-roots = ["."]
 
 [tool.pylint.format]
-max-line-length = 100     # Black/isort alignement
+max-line-length = 120     # Black/isort alignement
 
 [tool.pylint."MESSAGES CONTROL"]
 disable = [

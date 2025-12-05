@@ -1,5 +1,7 @@
 """Examples of using nanosamfw: high-level download/decrypt and raw FUS flow."""
 
+# pylint: disable=all  # Disable informational messages for this file due to draft code
+
 from tqdm import tqdm
 
 from download import download_and_decrypt
@@ -35,9 +37,7 @@ def main_high_level(model: str, csc: str, device_id: str) -> None:
         if stage not in bars or total != totals.get(stage) or done < last.get(stage, 0):
             if stage in bars:
                 bars[stage].close()
-            bars[stage] = tqdm(
-                total=total, unit="B", unit_scale=True, desc=stage.capitalize(), leave=True
-            )
+            bars[stage] = tqdm(total=total, unit="B", unit_scale=True, desc=stage.capitalize(), leave=True)
             last[stage] = 0
             totals[stage] = total
 

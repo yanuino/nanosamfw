@@ -18,6 +18,8 @@ Copyright (c) 2024 nanosamfw contributors
 SPDX-License-Identifier: MIT
 """
 
+# pylint: disable=all  # Disable informational messages for this file due to draft code
+
 from tqdm import tqdm
 
 from device import DeviceNotFoundError, read_device_info_at
@@ -108,9 +110,7 @@ def main() -> None:
                 if state["bar"] is None or total != state["total"] or done < state["last"]:
                     if state["bar"] is not None:
                         state["bar"].close()
-                    state["bar"] = tqdm(
-                        total=total, unit="B", unit_scale=True, desc=phase_name, leave=True
-                    )
+                    state["bar"] = tqdm(total=total, unit="B", unit_scale=True, desc=phase_name, leave=True)
                     state["last"] = 0
                     state["total"] = total
                 # Update by delta to avoid double counting

@@ -19,7 +19,7 @@
   },
 
   // Règle visuelle pour la longueur des lignes
-  "editor.rulers": [100],
+  "editor.rulers": [120],
 
   // Tests (au cas où)
   "python.testing.pytestEnabled": true
