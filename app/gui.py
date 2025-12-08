@@ -25,7 +25,7 @@ from device import DeviceNotFoundError, read_device_info_at
 from device.errors import DeviceError
 from download import check_and_prepare_firmware, cleanup_repository, download_and_decrypt, init_db
 from download.config import PATHS
-from fus.errors import FOTAError, InformError
+from fus.errors import FOTAModelOrRegionNotFound, FOTANoFirmware, InformError
 
 
 class FirmwareDownloaderApp(ctk.CTk):
@@ -802,23 +802,16 @@ class FirmwareDownloaderApp(ctk.CTk):
                                 self.update_progress_message(msg, color)
                                 self.download_in_progress = False
 
-                    except FOTAError.ModelOrRegionNotFound:
+                    except FOTAModelOrRegionNotFound:
                         msg = "Model or CSC not recognized by FOTA"
                         self._log("warning", f"{msg}: {device.model}/{device.sales_code}")
                         self.update_status("Device connected")
                         self.update_progress_message(msg, "warning")
-                    except FOTAError.NoFirmware:
+                    except FOTANoFirmware:
                         msg = "No firmware available from FOTA"
                         self._log("warning", f"{msg} for {device.model}/{device.sales_code}")
                         self.update_status("Device connected")
                         self.update_progress_message(msg, "warning")
-                    except FOTAError as ex:
-                        # Generic FOTA communication error: keep it out of progress zone
-                        msg = f"FOTA error: {ex}"
-                        self._log("error", msg)
-                        self.update_status("Device connected - Firmware check error")
-                        # Revert progress area to waiting (no unmanaged error text shown)
-                        self.update_progress_message("Waiting for device", "info")
                     except (OSError, IOError, ValueError, RuntimeError) as ex:
                         # Generic non-firmware error during check/download
                         msg = f"Error: {ex}"

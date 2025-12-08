@@ -132,24 +132,25 @@ class DeviceIdError(FUSError):
 class FOTAError(Exception):
     """Base class for FOTA endpoint errors with optional predefined messages."""
 
-    # Error subtypes with built-in messages
-    class ModelOrRegionNotFound(Exception):  # Keep as Exception for backward compatibility
-        """Model or region not found (HTTP 403)."""
 
-        def __init__(self, model: str = "", region: str = ""):
-            msg = "Model or region not found (403)"
-            if model or region:
-                msg += f": {model}/{region}"
-            super().__init__(msg)
+class FOTAModelOrRegionNotFound(FOTAError):
+    """Model or region not found (HTTP 403)."""
 
-    class NoFirmware(Exception):  # Keep as Exception for backward compatibility
-        """No firmware available in FOTA response."""
+    def __init__(self, model: str = "", region: str = ""):
+        msg = "Model or region not found (403)"
+        if model or region:
+            msg += f": {model}/{region}"
+        super().__init__(msg)
 
-        def __init__(self, model: str = "", region: str = ""):
-            msg = "No latest firmware available"
-            if model or region:
-                msg += f" for {model}/{region}"
-            super().__init__(msg)
+
+class FOTANoFirmware(FOTAError):
+    """No firmware available in FOTA response."""
+
+    def __init__(self, model: str = "", region: str = ""):
+        msg = "No latest firmware available"
+        if model or region:
+            msg += f" for {model}/{region}"
+        super().__init__(msg)
 
 
 class FOTAParsingError(FOTAError):

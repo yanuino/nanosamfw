@@ -293,15 +293,11 @@ def download_and_decrypt(
     Returns:
         (FirmwareRecord, decrypted_file_path)
     """
-    print(
-        f"[DEBUG] download_and_decrypt called: model={model}, csc={csc}, version={version}, device_id={device_id}, session_id={_SESSION_ID}"
-    )
     # 1. Resolve version and check cache
     if not version:
         version, _is_cached = check_and_prepare_firmware(model, csc, device_id, current_firmware)
     else:
         version = normalize_vercode(version)
-    print(f"[DEBUG] Resolved version: {version}, session_id={_SESSION_ID}")
 
     # 2. Download to repository
     def _dl_cb(done: int, total: int):
