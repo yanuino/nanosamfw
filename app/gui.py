@@ -510,7 +510,6 @@ class FirmwareDownloaderApp(ctk.CTk):
         last_done = self._stage_last_done.get(stage, -1)
         if stage not in self._stage_start_time or done < last_done:
             self._stage_start_time[stage] = now
-            last_done = 0
         self._stage_last_done[stage] = done
 
         mb_done = done / (1024 * 1024)
