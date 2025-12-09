@@ -127,8 +127,6 @@ class FirmwareDownloaderApp(ctk.CTk):
         """
         try:
             icons = files('AppIcons') if files('AppIcons').is_dir() else None
-
-            icons = files('AppIcons') if files('AppIcons').is_dir() else None
             if not icons:
                 return
 
