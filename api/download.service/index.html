@@ -2431,7 +2431,21 @@ where <code>stage</code> is one of <code>"download"</code> or <code>"decrypt"</c
 <span class="normal"><a href="#__codelineno-0-331">331</a></span>
 <span class="normal"><a href="#__codelineno-0-332">332</a></span>
 <span class="normal"><a href="#__codelineno-0-333">333</a></span>
-<span class="normal"><a href="#__codelineno-0-334">334</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="k">def</span><span class="w"> </span><span class="nf">download_and_decrypt</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-334">334</a></span>
+<span class="normal"><a href="#__codelineno-0-335">335</a></span>
+<span class="normal"><a href="#__codelineno-0-336">336</a></span>
+<span class="normal"><a href="#__codelineno-0-337">337</a></span>
+<span class="normal"><a href="#__codelineno-0-338">338</a></span>
+<span class="normal"><a href="#__codelineno-0-339">339</a></span>
+<span class="normal"><a href="#__codelineno-0-340">340</a></span>
+<span class="normal"><a href="#__codelineno-0-341">341</a></span>
+<span class="normal"><a href="#__codelineno-0-342">342</a></span>
+<span class="normal"><a href="#__codelineno-0-343">343</a></span>
+<span class="normal"><a href="#__codelineno-0-344">344</a></span>
+<span class="normal"><a href="#__codelineno-0-345">345</a></span>
+<span class="normal"><a href="#__codelineno-0-346">346</a></span>
+<span class="normal"><a href="#__codelineno-0-347">347</a></span>
+<span class="normal"><a href="#__codelineno-0-348">348</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-260" name="__codelineno-0-260"></a><span class="k">def</span><span class="w"> </span><span class="nf">download_and_decrypt</span><span class="p">(</span>
 <a id="__codelineno-0-261" name="__codelineno-0-261"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-0-262" name="__codelineno-0-262"></a>    <span class="n">csc</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 <a id="__codelineno-0-263" name="__codelineno-0-263"></a>    <span class="n">device_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -2478,34 +2492,48 @@ where <code>stage</code> is one of <code>"download"</code> or <code>"decrypt"</c
 <a id="__codelineno-0-304" name="__codelineno-0-304"></a>        <span class="k">if</span> <span class="n">progress_cb</span><span class="p">:</span>
 <a id="__codelineno-0-305" name="__codelineno-0-305"></a>            <span class="n">progress_cb</span><span class="p">(</span><span class="s2">&quot;download&quot;</span><span class="p">,</span> <span class="n">done</span><span class="p">,</span> <span class="n">total</span><span class="p">)</span>
 <a id="__codelineno-0-306" name="__codelineno-0-306"></a>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a>    <span class="n">firmware</span> <span class="o">=</span> <span class="n">get_or_download_firmware</span><span class="p">(</span>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a>        <span class="n">version</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">csc</span><span class="p">,</span> <span class="n">device_id</span><span class="p">,</span> <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span> <span class="n">progress_cb</span><span class="o">=</span><span class="n">_dl_cb</span> <span class="k">if</span> <span class="n">progress_cb</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a>    <span class="p">)</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>    <span class="c1"># Update log with successful firmware retrieval (whether downloaded or cached)</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a>    <span class="c1"># This updates the existing session record created by check_and_prepare_firmware</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313"></a>    <span class="n">upsert_imei_event</span><span class="p">(</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a>        <span class="n">session_id</span><span class="o">=</span><span class="n">_SESSION_ID</span><span class="p">,</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a>        <span class="n">imei</span><span class="o">=</span><span class="n">device_id</span><span class="p">,</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a>        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a>        <span class="n">csc</span><span class="o">=</span><span class="n">csc</span><span class="p">,</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>        <span class="n">version_code</span><span class="o">=</span><span class="n">version</span><span class="p">,</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a>        <span class="n">status_fus</span><span class="o">=</span><span class="s2">&quot;ok&quot;</span><span class="p">,</span>  <span class="c1"># Firmware obtained successfully</span>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a>        <span class="n">status_upgrade</span><span class="o">=</span><span class="s2">&quot;unknown&quot;</span><span class="p">,</span>  <span class="c1"># Firmware flashing not implemented</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321"></a>    <span class="p">)</span>
-<a id="__codelineno-0-322" name="__codelineno-0-322"></a>
-<a id="__codelineno-0-323" name="__codelineno-0-323"></a>    <span class="c1"># 3. Decrypt</span>
-<a id="__codelineno-0-324" name="__codelineno-0-324"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dec_cb</span><span class="p">(</span><span class="n">done</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">total</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<a id="__codelineno-0-325" name="__codelineno-0-325"></a>        <span class="k">if</span> <span class="n">progress_cb</span><span class="p">:</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326"></a>            <span class="n">progress_cb</span><span class="p">(</span><span class="s2">&quot;decrypt&quot;</span><span class="p">,</span> <span class="n">done</span><span class="p">,</span> <span class="n">total</span><span class="p">)</span>
-<a id="__codelineno-0-327" name="__codelineno-0-327"></a>
-<a id="__codelineno-0-328" name="__codelineno-0-328"></a>    <span class="n">decrypted_path</span> <span class="o">=</span> <span class="n">decrypt_firmware</span><span class="p">(</span>
-<a id="__codelineno-0-329" name="__codelineno-0-329"></a>        <span class="n">version</span><span class="p">,</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a>        <span class="n">output_path</span><span class="p">,</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a>        <span class="n">progress_cb</span><span class="o">=</span><span class="n">_dec_cb</span> <span class="k">if</span> <span class="n">progress_cb</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-332" name="__codelineno-0-332"></a>    <span class="p">)</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a>
-<a id="__codelineno-0-334" name="__codelineno-0-334"></a>    <span class="k">return</span> <span class="n">firmware</span><span class="p">,</span> <span class="n">decrypted_path</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a>        <span class="n">firmware</span> <span class="o">=</span> <span class="n">get_or_download_firmware</span><span class="p">(</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>            <span class="n">version</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">csc</span><span class="p">,</span> <span class="n">device_id</span><span class="p">,</span> <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span> <span class="n">progress_cb</span><span class="o">=</span><span class="n">_dl_cb</span> <span class="k">if</span> <span class="n">progress_cb</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>        <span class="p">)</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a>    <span class="k">except</span> <span class="n">FUSError</span><span class="p">:</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>        <span class="c1"># Update imei_log with error status before re-raising</span>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a>        <span class="c1"># Catches InformError and all its subtypes (BadStatus, MissingStatus, etc.)</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a>        <span class="n">upsert_imei_event</span><span class="p">(</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a>            <span class="n">session_id</span><span class="o">=</span><span class="n">_SESSION_ID</span><span class="p">,</span>
+<a id="__codelineno-0-316" name="__codelineno-0-316"></a>            <span class="n">imei</span><span class="o">=</span><span class="n">device_id</span><span class="p">,</span>
+<a id="__codelineno-0-317" name="__codelineno-0-317"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a>            <span class="n">csc</span><span class="o">=</span><span class="n">csc</span><span class="p">,</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a>            <span class="n">version_code</span><span class="o">=</span><span class="n">version</span><span class="p">,</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a>            <span class="n">status_fus</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a>            <span class="n">status_upgrade</span><span class="o">=</span><span class="s2">&quot;unknown&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a>        <span class="p">)</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>        <span class="k">raise</span>
+<a id="__codelineno-0-324" name="__codelineno-0-324"></a>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a>    <span class="c1"># Update log with successful firmware retrieval (whether downloaded or cached)</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a>    <span class="c1"># This updates the existing session record created by check_and_prepare_firmware</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a>    <span class="n">upsert_imei_event</span><span class="p">(</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a>        <span class="n">session_id</span><span class="o">=</span><span class="n">_SESSION_ID</span><span class="p">,</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a>        <span class="n">imei</span><span class="o">=</span><span class="n">device_id</span><span class="p">,</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a>        <span class="n">csc</span><span class="o">=</span><span class="n">csc</span><span class="p">,</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a>        <span class="n">version_code</span><span class="o">=</span><span class="n">version</span><span class="p">,</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a>        <span class="n">status_fus</span><span class="o">=</span><span class="s2">&quot;ok&quot;</span><span class="p">,</span>  <span class="c1"># Firmware obtained successfully</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a>        <span class="n">status_upgrade</span><span class="o">=</span><span class="s2">&quot;unknown&quot;</span><span class="p">,</span>  <span class="c1"># Firmware flashing not implemented</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a>    <span class="p">)</span>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a>    <span class="c1"># 3. Decrypt</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dec_cb</span><span class="p">(</span><span class="n">done</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">total</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a>        <span class="k">if</span> <span class="n">progress_cb</span><span class="p">:</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>            <span class="n">progress_cb</span><span class="p">(</span><span class="s2">&quot;decrypt&quot;</span><span class="p">,</span> <span class="n">done</span><span class="p">,</span> <span class="n">total</span><span class="p">)</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a>    <span class="n">decrypted_path</span> <span class="o">=</span> <span class="n">decrypt_firmware</span><span class="p">(</span>
+<a id="__codelineno-0-343" name="__codelineno-0-343"></a>        <span class="n">version</span><span class="p">,</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344"></a>        <span class="n">output_path</span><span class="p">,</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345"></a>        <span class="n">progress_cb</span><span class="o">=</span><span class="n">_dec_cb</span> <span class="k">if</span> <span class="n">progress_cb</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>    <span class="p">)</span>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a>    <span class="k">return</span> <span class="n">firmware</span><span class="p">,</span> <span class="n">decrypted_path</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2589,21 +2617,7 @@ total_records, missing_encrypted, decrypted_deleted, records_deleted</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>download\service.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-337">337</a></span>
-<span class="normal"><a href="#__codelineno-0-338">338</a></span>
-<span class="normal"><a href="#__codelineno-0-339">339</a></span>
-<span class="normal"><a href="#__codelineno-0-340">340</a></span>
-<span class="normal"><a href="#__codelineno-0-341">341</a></span>
-<span class="normal"><a href="#__codelineno-0-342">342</a></span>
-<span class="normal"><a href="#__codelineno-0-343">343</a></span>
-<span class="normal"><a href="#__codelineno-0-344">344</a></span>
-<span class="normal"><a href="#__codelineno-0-345">345</a></span>
-<span class="normal"><a href="#__codelineno-0-346">346</a></span>
-<span class="normal"><a href="#__codelineno-0-347">347</a></span>
-<span class="normal"><a href="#__codelineno-0-348">348</a></span>
-<span class="normal"><a href="#__codelineno-0-349">349</a></span>
-<span class="normal"><a href="#__codelineno-0-350">350</a></span>
-<span class="normal"><a href="#__codelineno-0-351">351</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-351">351</a></span>
 <span class="normal"><a href="#__codelineno-0-352">352</a></span>
 <span class="normal"><a href="#__codelineno-0-353">353</a></span>
 <span class="normal"><a href="#__codelineno-0-354">354</a></span>
@@ -2641,59 +2655,75 @@ total_records, missing_encrypted, decrypted_deleted, records_deleted</p>
 <span class="normal"><a href="#__codelineno-0-386">386</a></span>
 <span class="normal"><a href="#__codelineno-0-387">387</a></span>
 <span class="normal"><a href="#__codelineno-0-388">388</a></span>
-<span class="normal"><a href="#__codelineno-0-389">389</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-337" name="__codelineno-0-337"></a><span class="k">def</span><span class="w"> </span><span class="nf">cleanup_repository</span><span class="p">(</span>
-<a id="__codelineno-0-338" name="__codelineno-0-338"></a>    <span class="n">progress_cb</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Clean repository inconsistencies.</span>
-<a id="__codelineno-0-341" name="__codelineno-0-341"></a>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a><span class="sd">    Verifies each firmware record&#39;s encrypted file exists. If missing:</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343"></a><span class="sd">        * Deletes decrypted file if present.</span>
-<a id="__codelineno-0-344" name="__codelineno-0-344"></a><span class="sd">        * Deletes database record.</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="sd">        progress_cb: Optional callback invoked as</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a><span class="sd">            progress_cb(processed, total, missing_encrypted, records_deleted, decrypted_deleted)</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349"></a>
-<a id="__codelineno-0-350" name="__codelineno-0-350"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="sd">        Summary statistics dict with keys:</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="sd">            total_records, missing_encrypted, decrypted_deleted, records_deleted</span>
-<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a>    <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>        <span class="s2">&quot;total_records&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a>        <span class="s2">&quot;missing_encrypted&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a>        <span class="s2">&quot;decrypted_deleted&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a>        <span class="s2">&quot;records_deleted&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a>    <span class="p">}</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a>    <span class="n">records</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">list_firmware</span><span class="p">())</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a>    <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a>    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">records</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;total_records&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a>        <span class="n">enc_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">encrypted_file_path</span><span class="p">)</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">enc_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a>            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;missing_encrypted&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a>            <span class="c1"># remove decrypted file if exists</span>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a>            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">decrypted_file_path</span><span class="p">:</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a>                <span class="n">dec_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">decrypted_file_path</span><span class="p">)</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a>                <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-372" name="__codelineno-0-372"></a>                    <span class="k">if</span> <span class="n">dec_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-<a id="__codelineno-0-373" name="__codelineno-0-373"></a>                        <span class="n">dec_path</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
-<a id="__codelineno-0-374" name="__codelineno-0-374"></a>                        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;decrypted_deleted&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a>                <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
-<a id="__codelineno-0-376" name="__codelineno-0-376"></a>                    <span class="k">pass</span>
-<a id="__codelineno-0-377" name="__codelineno-0-377"></a>            <span class="n">delete_firmware</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">version_code</span><span class="p">)</span>
-<a id="__codelineno-0-378" name="__codelineno-0-378"></a>            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;records_deleted&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<a id="__codelineno-0-379" name="__codelineno-0-379"></a>
-<a id="__codelineno-0-380" name="__codelineno-0-380"></a>        <span class="k">if</span> <span class="n">progress_cb</span><span class="p">:</span>
-<a id="__codelineno-0-381" name="__codelineno-0-381"></a>            <span class="n">progress_cb</span><span class="p">(</span>
-<a id="__codelineno-0-382" name="__codelineno-0-382"></a>                <span class="n">idx</span><span class="p">,</span>
-<a id="__codelineno-0-383" name="__codelineno-0-383"></a>                <span class="n">total</span><span class="p">,</span>
-<a id="__codelineno-0-384" name="__codelineno-0-384"></a>                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;missing_encrypted&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-385" name="__codelineno-0-385"></a>                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;records_deleted&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-386" name="__codelineno-0-386"></a>                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;decrypted_deleted&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-387" name="__codelineno-0-387"></a>            <span class="p">)</span>
-<a id="__codelineno-0-388" name="__codelineno-0-388"></a>
-<a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="k">return</span> <span class="n">stats</span>
+<span class="normal"><a href="#__codelineno-0-389">389</a></span>
+<span class="normal"><a href="#__codelineno-0-390">390</a></span>
+<span class="normal"><a href="#__codelineno-0-391">391</a></span>
+<span class="normal"><a href="#__codelineno-0-392">392</a></span>
+<span class="normal"><a href="#__codelineno-0-393">393</a></span>
+<span class="normal"><a href="#__codelineno-0-394">394</a></span>
+<span class="normal"><a href="#__codelineno-0-395">395</a></span>
+<span class="normal"><a href="#__codelineno-0-396">396</a></span>
+<span class="normal"><a href="#__codelineno-0-397">397</a></span>
+<span class="normal"><a href="#__codelineno-0-398">398</a></span>
+<span class="normal"><a href="#__codelineno-0-399">399</a></span>
+<span class="normal"><a href="#__codelineno-0-400">400</a></span>
+<span class="normal"><a href="#__codelineno-0-401">401</a></span>
+<span class="normal"><a href="#__codelineno-0-402">402</a></span>
+<span class="normal"><a href="#__codelineno-0-403">403</a></span>
+<span class="normal"><a href="#__codelineno-0-404">404</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-351" name="__codelineno-0-351"></a><span class="k">def</span><span class="w"> </span><span class="nf">cleanup_repository</span><span class="p">(</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a>    <span class="n">progress_cb</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Clean repository inconsistencies.</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">    Verifies each firmware record&#39;s encrypted file exists. If missing:</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a><span class="sd">        * Deletes decrypted file if present.</span>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">        * Deletes database record.</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">        progress_cb: Optional callback invoked as</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">            progress_cb(processed, total, missing_encrypted, records_deleted, decrypted_deleted)</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">        Summary statistics dict with keys:</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a><span class="sd">            total_records, missing_encrypted, decrypted_deleted, records_deleted</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>    <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>        <span class="s2">&quot;total_records&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a>        <span class="s2">&quot;missing_encrypted&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a>        <span class="s2">&quot;decrypted_deleted&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a>        <span class="s2">&quot;records_deleted&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a>    <span class="p">}</span>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a>    <span class="n">records</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">list_firmware</span><span class="p">())</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a>    <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a>    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">rec</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">records</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<a id="__codelineno-0-378" name="__codelineno-0-378"></a>        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;total_records&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-0-379" name="__codelineno-0-379"></a>        <span class="n">enc_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">encrypted_file_path</span><span class="p">)</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">enc_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+<a id="__codelineno-0-381" name="__codelineno-0-381"></a>            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;missing_encrypted&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-0-382" name="__codelineno-0-382"></a>            <span class="c1"># remove decrypted file if exists</span>
+<a id="__codelineno-0-383" name="__codelineno-0-383"></a>            <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">decrypted_file_path</span><span class="p">:</span>
+<a id="__codelineno-0-384" name="__codelineno-0-384"></a>                <span class="n">dec_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">decrypted_file_path</span><span class="p">)</span>
+<a id="__codelineno-0-385" name="__codelineno-0-385"></a>                <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-386" name="__codelineno-0-386"></a>                    <span class="k">if</span> <span class="n">dec_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+<a id="__codelineno-0-387" name="__codelineno-0-387"></a>                        <span class="n">dec_path</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+<a id="__codelineno-0-388" name="__codelineno-0-388"></a>                        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;decrypted_deleted&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-0-389" name="__codelineno-0-389"></a>                <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>                    <span class="c1"># Ignore errors deleting decrypted file (e.g., file missing, permission denied)</span>
+<a id="__codelineno-0-391" name="__codelineno-0-391"></a>                    <span class="k">pass</span>
+<a id="__codelineno-0-392" name="__codelineno-0-392"></a>            <span class="n">delete_firmware</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">version_code</span><span class="p">)</span>
+<a id="__codelineno-0-393" name="__codelineno-0-393"></a>            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;records_deleted&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-0-394" name="__codelineno-0-394"></a>
+<a id="__codelineno-0-395" name="__codelineno-0-395"></a>        <span class="k">if</span> <span class="n">progress_cb</span><span class="p">:</span>
+<a id="__codelineno-0-396" name="__codelineno-0-396"></a>            <span class="n">progress_cb</span><span class="p">(</span>
+<a id="__codelineno-0-397" name="__codelineno-0-397"></a>                <span class="n">idx</span><span class="p">,</span>
+<a id="__codelineno-0-398" name="__codelineno-0-398"></a>                <span class="n">total</span><span class="p">,</span>
+<a id="__codelineno-0-399" name="__codelineno-0-399"></a>                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;missing_encrypted&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-400" name="__codelineno-0-400"></a>                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;records_deleted&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-401" name="__codelineno-0-401"></a>                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;decrypted_deleted&quot;</span><span class="p">],</span>
+<a id="__codelineno-0-402" name="__codelineno-0-402"></a>            <span class="p">)</span>
+<a id="__codelineno-0-403" name="__codelineno-0-403"></a>
+<a id="__codelineno-0-404" name="__codelineno-0-404"></a>    <span class="k">return</span> <span class="n">stats</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2727,7 +2757,7 @@ total_records, missing_encrypted, decrypted_deleted, records_deleted</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 28, 2025 11:53:32 CET"><span class="timeago" datetime="2025-11-28T11:53:32+01:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 28, 2025 11:53:32 CET">2025-11-28</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="December 9, 2025 10:22:28 CET"><span class="timeago" datetime="2025-12-09T10:22:28+01:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="December 9, 2025 10:22:28 CET">2025-12-09</span>
   </span>
 
     
