@@ -1,0 +1,40 @@
+name: docs-release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to publish docs for"
+        required: false
+        default: "test-tag"
+      release_title:
+        description: "Title to publish docs for"
+        required: false
+        default: "Test Release"
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install -r dev-requirements.txt
+      - name: Build docs with release metadata
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          RELEASE_TITLE: ${{ github.event.release.name || inputs.release_title }}
+        run: |
+          mkdocs build -d site --strict
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
