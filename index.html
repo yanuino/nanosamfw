@@ -322,10 +322,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#device-detection" class="md-nav__link">
+  <a href="#device-detection-two-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        📱 Device Detection
+        📱 Device Detection (Two Modes)
       
     </span>
   </a>
@@ -427,10 +427,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#device-integration" class="md-nav__link">
+  <a href="#device-integration-at-commands-normalrecovery-mode" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Device Integration
+        Device Integration — AT Commands (Normal/Recovery Mode)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#device-integration-odin-protocol-download-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Device Integration — Odin Protocol (Download Mode)
       
     </span>
   </a>
@@ -1261,28 +1272,33 @@
 <h1 id="nanosamfw-documentation">nanosamfw Documentation<a class="headerlink" href="#nanosamfw-documentation" title="Permanent link">&para;</a></h1>
 <p><img alt="nanosamfw Logo" src="assets/images/256.png" style="display:block; margin: 0 auto" width="256" /></p>
 <p><strong>nanosamfw</strong> (NotANOtherSamsungFirmware downloader) is a Python package providing programmatic access to Samsung firmware downloads through the Samsung Firmware Update Service (FUS).</p>
+<p>{% if config.extra.release_tag %}</p>
+<blockquote>
+<p _="%" endif="endif"><strong>Release {{ config.extra.release_tag }}</strong> — {{ config.extra.release_title }}</p>
+</blockquote>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>This package offers a clean, well-documented Python API for:</p>
 <ul>
-<li><strong>Firmware Discovery</strong>: Query latest firmware versions for Samsung devices</li>
-<li><strong>Secure Downloads</strong>: Download firmware with resume capability and encryption support</li>
+<li><strong>Firmware Discovery</strong>: Query latest firmware versions from Samsung FOTA service</li>
+<li><strong>Secure Downloads</strong>: Download firmware with resume capability via FUS protocol</li>
 <li><strong>Decryption</strong>: Automatic decryption of ENC2/ENC4 encrypted firmware files</li>
-<li><strong>Database Tracking</strong>: Built-in SQLite tracking for downloads and IMEI operations</li>
+<li><strong>Device Integration</strong>: Read device info via AT commands (normal/recovery mode) or Odin protocol (download mode)</li>
+<li><strong>Database Tracking</strong>: Built-in SQLite tracking for firmware repository and IMEI operations</li>
 <li><strong>Integration Ready</strong>: Designed for easy integration into tools and workflows</li>
 </ul>
 <h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
 <h3 id="full-fus-protocol-support">🔐 Full FUS Protocol Support<a class="headerlink" href="#full-fus-protocol-support" title="Permanent link">&para;</a></h3>
 <ul>
 <li>BinaryInform, BinaryInit, and BinaryDownload operations</li>
-<li>Server nonce handling and signature generation</li>
-<li>Device ID (IMEI/Serial) validation</li>
+<li>Server nonce handling and cryptographic signature generation</li>
+<li>Device ID (IMEI/Serial) validation and auto-detection</li>
 </ul>
-<h3 id="device-detection">📱 Device Detection<a class="headerlink" href="#device-detection" title="Permanent link">&para;</a></h3>
+<h3 id="device-detection-two-modes">📱 Device Detection (Two Modes)<a class="headerlink" href="#device-detection-two-modes" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Auto-detect Samsung devices in MTP mode (cross-platform)</li>
-<li>Read device info via AT commands (model, IMEI, firmware versions)</li>
+<li><strong>AT Commands</strong> (Normal/Recovery Mode): <code>read_device_info_at()</code> — reads model, IMEI, firmware, region via AT+DEVCONINFO</li>
+<li><strong>Odin Protocol</strong> (Download Mode): <code>read_device_info()</code> — sends DVIF command for detailed device info</li>
+<li>Auto-detect via <code>detect_download_mode_devices()</code> (cross-platform, requires pyserial and Samsung USB drivers on Windows)</li>
 <li>Seamless integration with firmware download workflow</li>
-<li><strong>Requires</strong>: pyserial, Samsung USB drivers (Windows)</li>
 </ul>
 <h3 id="high-level-download-api">📦 High-Level Download API<a class="headerlink" href="#high-level-download-api" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1298,10 +1314,10 @@
 </ul>
 <h3 id="firmware-repository">💾 Firmware Repository<a class="headerlink" href="#firmware-repository" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Centralized firmware storage (no duplication per model/CSC)</li>
-<li>Cached InformInfo metadata for efficient operations</li>
-<li>IMEI event logging with status tracking</li>
-<li>Repository pattern for clean data access</li>
+<li>Centralized firmware storage (one record per version, no model/CSC duplication)</li>
+<li>Cached InformInfo metadata including logic values for efficient operations</li>
+<li>IMEI event logging with FUS status tracking (ok/error/denied/unauthorized/throttled/unknown)</li>
+<li>Repository pattern with clean data access layers</li>
 </ul>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
 <p>nanosamfw uses a three-layer architecture for clean separation of concerns:</p>
@@ -1332,36 +1348,37 @@
 <span class="normal"><a href="#__codelineno-0-25">25</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1"></a>┌──────────────────────────────────────────────────────┐
 <a id="__codelineno-0-2" name="__codelineno-0-2"></a>│                   Service Layer                      │
 <a id="__codelineno-0-3" name="__codelineno-0-3"></a>├──────────────────────────────────────────────────────┤
-<a id="__codelineno-0-4" name="__codelineno-0-4"></a>│ check_and_prepare_firmware() │ FOTA + cache check   │
-<a id="__codelineno-0-5" name="__codelineno-0-5"></a>│ get_or_download_firmware()   │ Smart download       │
+<a id="__codelineno-0-4" name="__codelineno-0-4"></a>│ check_and_prepare_firmware() │ FOTA check + cache   │
+<a id="__codelineno-0-5" name="__codelineno-0-5"></a>│ get_or_download_firmware()   │ FUS download + resume│
 <a id="__codelineno-0-6" name="__codelineno-0-6"></a>│ decrypt_firmware()           │ Repository → decrypt │
-<a id="__codelineno-0-7" name="__codelineno-0-7"></a>│ download_and_decrypt()       │ Full workflow        │
+<a id="__codelineno-0-7" name="__codelineno-0-7"></a>│ download_and_decrypt()       │ Full workflow end-end│
 <a id="__codelineno-0-8" name="__codelineno-0-8"></a>└──────────────────────────────────────────────────────┘
 <a id="__codelineno-0-9" name="__codelineno-0-9"></a>                           │
 <a id="__codelineno-0-10" name="__codelineno-0-10"></a>                           ▼
 <a id="__codelineno-0-11" name="__codelineno-0-11"></a>┌──────────────────────────────────────────────────────┐
 <a id="__codelineno-0-12" name="__codelineno-0-12"></a>│                Repository Layer                      │
 <a id="__codelineno-0-13" name="__codelineno-0-13"></a>├──────────────────────────────────────────────────────┤
-<a id="__codelineno-0-14" name="__codelineno-0-14"></a>│ firmware_repository.py   │ FirmwareRecord CRUD       │
-<a id="__codelineno-0-15" name="__codelineno-0-15"></a>│ imei_repository.py       │ IMEIEvent logging         │
+<a id="__codelineno-0-14" name="__codelineno-0-14"></a>│ firmware_repository.py   │ FirmwareRecord CRUD      │
+<a id="__codelineno-0-15" name="__codelineno-0-15"></a>│ imei_repository.py       │ IMEIEvent logging        │
 <a id="__codelineno-0-16" name="__codelineno-0-16"></a>└──────────────────────────────────────────────────────┘
 <a id="__codelineno-0-17" name="__codelineno-0-17"></a>                           │
 <a id="__codelineno-0-18" name="__codelineno-0-18"></a>                           ▼
 <a id="__codelineno-0-19" name="__codelineno-0-19"></a>┌──────────────────────────────────────────────────────┐
 <a id="__codelineno-0-20" name="__codelineno-0-20"></a>│                  Database Layer                      │
 <a id="__codelineno-0-21" name="__codelineno-0-21"></a>├──────────────────────────────────────────────────────┤
-<a id="__codelineno-0-22" name="__codelineno-0-22"></a>│ firmware.db              │                           │
-<a id="__codelineno-0-23" name="__codelineno-0-23"></a>│  ├─ firmware (repository)│ version → file + metadata │
-<a id="__codelineno-0-24" name="__codelineno-0-24"></a>│  └─ imei_log (tracking)  │ FOTA queries + FUS status │
+<a id="__codelineno-0-22" name="__codelineno-0-22"></a>│ firmware.db (SQLite, WAL mode)                       │
+<a id="__codelineno-0-23" name="__codelineno-0-23"></a>│  ├─ firmware  │ one per version, logic_value cached │
+<a id="__codelineno-0-24" name="__codelineno-0-24"></a>│  └─ imei_log  │ FOTA queries + FUS status tracking  │
 <a id="__codelineno-0-25" name="__codelineno-0-25"></a>└──────────────────────────────────────────────────────┘
 </code></pre></div></td></tr></table></div>
 <p><strong>Key Design Principles:</strong></p>
 <ul>
-<li><strong>Firmware Repository</strong>: Centralized storage - one record per firmware version (no model/CSC duplication)</li>
+<li><strong>Firmware Repository</strong>: Centralized storage — one record per firmware version (no model/CSC duplication)</li>
 <li><strong>Smart Downloads</strong>: Checks repository before downloading from FUS servers</li>
-<li><strong>Cached Metadata</strong>: Stores InformInfo data including logic values for efficient decryption</li>
+<li><strong>Cached Metadata</strong>: Stores InformInfo data including logic values for efficient ENC4 decryption without extra FUS calls</li>
 <li><strong>Separation of Concerns</strong>: FOTA check, download, and decrypt are independent operations</li>
-<li><strong>Request Tracking</strong>: IMEI log captures all queries separately from firmware repository</li>
+<li><strong>Status Tracking</strong>: IMEI log captures all FOTA queries with FUS operation status (ok/error/denied/unauthorized/throttled/unknown)</li>
+<li><strong>Error Handling</strong>: FUSError subclasses with built-in messages (InformError.BadStatus, FOTAError, etc.)</li>
 </ul>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="complete-workflow">Complete Workflow<a class="headerlink" href="#complete-workflow" title="Permanent link">&para;</a></h3>
@@ -1443,7 +1460,7 @@
 <a id="__codelineno-3-10" name="__codelineno-3-10"></a><span class="k">for</span> <span class="n">fw</span> <span class="ow">in</span> <span class="n">list_firmware</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
 <a id="__codelineno-3-11" name="__codelineno-3-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">fw</span><span class="o">.</span><span class="n">version_code</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">fw</span><span class="o">.</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
-<h3 id="device-integration">Device Integration<a class="headerlink" href="#device-integration" title="Permanent link">&para;</a></h3>
+<h3 id="device-integration-at-commands-normalrecovery-mode">Device Integration — AT Commands (Normal/Recovery Mode)<a class="headerlink" href="#device-integration-at-commands-normalrecovery-mode" title="Permanent link">&para;</a></h3>
 <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-4-1"> 1</a></span>
 <span class="normal"><a href="#__codelineno-4-2"> 2</a></span>
 <span class="normal"><a href="#__codelineno-4-3"> 3</a></span>
@@ -1462,91 +1479,144 @@
 <span class="normal"><a href="#__codelineno-4-16">16</a></span>
 <span class="normal"><a href="#__codelineno-4-17">17</a></span>
 <span class="normal"><a href="#__codelineno-4-18">18</a></span>
-<span class="normal"><a href="#__codelineno-4-19">19</a></span>
-<span class="normal"><a href="#__codelineno-4-20">20</a></span>
-<span class="normal"><a href="#__codelineno-4-21">21</a></span>
-<span class="normal"><a href="#__codelineno-4-22">22</a></span>
-<span class="normal"><a href="#__codelineno-4-23">23</a></span>
-<span class="normal"><a href="#__codelineno-4-24">24</a></span>
-<span class="normal"><a href="#__codelineno-4-25">25</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">device</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_device_info_at</span>
+<span class="normal"><a href="#__codelineno-4-19">19</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">device</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_device_info_at</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">download</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_and_prepare_firmware</span><span class="p">,</span> <span class="n">download_and_decrypt</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4"></a><span class="c1"># Auto-detect connected device (requires pyserial)</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5"></a><span class="n">device</span> <span class="o">=</span> <span class="n">read_device_info_at</span><span class="p">()</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Connected: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="si">}</span><span class="s2"> - IMEI: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">imei</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Connected: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="si">}</span><span class="s2"> — IMEI: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">imei</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 <a id="__codelineno-4-7" name="__codelineno-4-7"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Current firmware: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">firmware_version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9"></a><span class="c1"># Check FOTA for latest version and repository cache</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10"></a><span class="n">latest</span><span class="p">,</span> <span class="n">is_cached</span> <span class="o">=</span> <span class="n">check_and_prepare_firmware</span><span class="p">(</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11"></a>    <span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">sales_code</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">imei</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">firmware_version</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12"></a><span class="p">)</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Latest firmware: </span><span class="si">{</span><span class="n">latest</span><span class="si">}</span><span class="s2">, Already downloaded: </span><span class="si">{</span><span class="n">is_cached</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Region: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">sales_code</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10"></a><span class="c1"># Check for updates and download if available</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11"></a><span class="n">latest</span><span class="p">,</span> <span class="n">is_cached</span> <span class="o">=</span> <span class="n">check_and_prepare_firmware</span><span class="p">(</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12"></a>    <span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">sales_code</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">imei</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">firmware_version</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13"></a><span class="p">)</span>
 <a id="__codelineno-4-14" name="__codelineno-4-14"></a>
-<a id="__codelineno-4-15" name="__codelineno-4-15"></a><span class="c1"># Download if update available</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16"></a><span class="k">if</span> <span class="n">latest</span> <span class="o">!=</span> <span class="n">device</span><span class="o">.</span><span class="n">firmware_version</span><span class="p">:</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17"></a>    <span class="n">firmware</span><span class="p">,</span> <span class="n">decrypted</span> <span class="o">=</span> <span class="n">download_and_decrypt</span><span class="p">(</span>
-<a id="__codelineno-4-18" name="__codelineno-4-18"></a>        <span class="n">model</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
-<a id="__codelineno-4-19" name="__codelineno-4-19"></a>        <span class="n">csc</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">sales_code</span><span class="p">,</span>
-<a id="__codelineno-4-20" name="__codelineno-4-20"></a>        <span class="n">device_id</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">imei</span><span class="p">,</span>
-<a id="__codelineno-4-21" name="__codelineno-4-21"></a>        <span class="n">current_firmware</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">firmware_version</span>
-<a id="__codelineno-4-22" name="__codelineno-4-22"></a>    <span class="p">)</span>
-<a id="__codelineno-4-23" name="__codelineno-4-23"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Downloaded: </span><span class="si">{</span><span class="n">decrypted</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-24" name="__codelineno-4-24"></a><span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-4-25" name="__codelineno-4-25"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Already up to date&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15"></a><span class="k">if</span> <span class="n">latest</span> <span class="o">!=</span> <span class="n">device</span><span class="o">.</span><span class="n">firmware_version</span><span class="p">:</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16"></a>    <span class="n">firmware</span><span class="p">,</span> <span class="n">decrypted</span> <span class="o">=</span> <span class="n">download_and_decrypt</span><span class="p">(</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17"></a>        <span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">sales_code</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">imei</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">firmware_version</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18"></a>    <span class="p">)</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Decrypted: </span><span class="si">{</span><span class="n">decrypted</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="device-integration-odin-protocol-download-mode">Device Integration — Odin Protocol (Download Mode)<a class="headerlink" href="#device-integration-odin-protocol-download-mode" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Python</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-5-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-5-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-5-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-5-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-5-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-5-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-5-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-5-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-5-10">10</a></span>
+<span class="normal"><a href="#__codelineno-5-11">11</a></span>
+<span class="normal"><a href="#__codelineno-5-12">12</a></span>
+<span class="normal"><a href="#__codelineno-5-13">13</a></span>
+<span class="normal"><a href="#__codelineno-5-14">14</a></span>
+<span class="normal"><a href="#__codelineno-5-15">15</a></span>
+<span class="normal"><a href="#__codelineno-5-16">16</a></span>
+<span class="normal"><a href="#__codelineno-5-17">17</a></span>
+<span class="normal"><a href="#__codelineno-5-18">18</a></span>
+<span class="normal"><a href="#__codelineno-5-19">19</a></span>
+<span class="normal"><a href="#__codelineno-5-20">20</a></span>
+<span class="normal"><a href="#__codelineno-5-21">21</a></span>
+<span class="normal"><a href="#__codelineno-5-22">22</a></span>
+<span class="normal"><a href="#__codelineno-5-23">23</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">device</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_device_info</span><span class="p">,</span> <span class="n">detect_download_mode_devices</span><span class="p">,</span> <span class="n">is_odin_mode</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">download</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_and_prepare_firmware</span><span class="p">,</span> <span class="n">download_and_decrypt</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="c1"># 1. Detect device in download mode</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5"></a><span class="n">devices</span> <span class="o">=</span> <span class="n">detect_download_mode_devices</span><span class="p">()</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6"></a><span class="k">if</span> <span class="n">devices</span><span class="p">:</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7"></a>    <span class="c1"># 2. Verify it&#39;s in Odin mode</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8"></a>    <span class="k">if</span> <span class="n">is_odin_mode</span><span class="p">(</span><span class="n">devices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">port_name</span><span class="p">):</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9"></a>        <span class="c1"># 3. Read device info via DVIF protocol</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10"></a>        <span class="n">device</span> <span class="o">=</span> <span class="n">read_device_info</span><span class="p">(</span><span class="n">devices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">port_name</span><span class="p">)</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Connected: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="si">}</span><span class="s2"> — Firmware: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">fwver</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Region: </span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">sales</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13"></a>
+<a id="__codelineno-5-14" name="__codelineno-5-14"></a>        <span class="c1"># 4. Check for updates (no IMEI available in download mode)</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15"></a>        <span class="n">latest</span><span class="p">,</span> <span class="n">is_cached</span> <span class="o">=</span> <span class="n">check_and_prepare_firmware</span><span class="p">(</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16"></a>            <span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">sales</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">fwver</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17"></a>        <span class="p">)</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18"></a>
+<a id="__codelineno-5-19" name="__codelineno-5-19"></a>        <span class="k">if</span> <span class="n">latest</span> <span class="o">!=</span> <span class="n">device</span><span class="o">.</span><span class="n">fwver</span><span class="p">:</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20"></a>            <span class="n">firmware</span><span class="p">,</span> <span class="n">decrypted</span> <span class="o">=</span> <span class="n">download_and_decrypt</span><span class="p">(</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21"></a>                <span class="n">device</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">sales</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">.</span><span class="n">fwver</span>
+<a id="__codelineno-5-22" name="__codelineno-5-22"></a>            <span class="p">)</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Decrypted: </span><span class="si">{</span><span class="n">decrypted</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Python 3.12 or higher</li>
-<li>Dependencies:</li>
-<li><code>pycryptodome</code> - Cryptographic operations</li>
-<li><code>requests</code> - HTTP client</li>
-<li><code>tqdm</code> - Progress bars</li>
-<li><strong>Device Detection (optional)</strong>:</li>
-<li><code>pyserial</code> - Serial port communication and device detection</li>
-<li>Samsung USB drivers (Windows)</li>
+<li><strong>Python 3.14 or higher</strong></li>
+<li><strong>Core Dependencies</strong>:</li>
+<li><code>pycryptodome</code> — Cryptographic operations (AES, PKCS7)</li>
+<li><code>requests</code> — HTTP client for FUS/FOTA communication</li>
+<li><code>tqdm</code> — Progress bars for download/decrypt</li>
+<li><strong>Device Detection</strong> (optional):</li>
+<li><code>pyserial ≥ 3.5</code> — Serial port communication (cross-platform)</li>
+<li>Samsung USB drivers (Windows only, for download mode)</li>
 </ul>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
-<div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Bash</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+<div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Bash</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</code></pre></div></td></tr></table></div>
+<p>For development/docs building:</p>
+<div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Bash</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>dev-requirements.txt
 </code></pre></div></td></tr></table></div>
 <h2 id="project-structure">Project Structure<a class="headerlink" href="#project-structure" title="Permanent link">&para;</a></h2>
 <h3 id="core-modules">Core Modules<a class="headerlink" href="#core-modules" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><a href="api/fus.client/">fus</a></strong> - FUS protocol client and utilities</li>
-<li>Client implementation with session management</li>
-<li>Cryptographic operations and key derivation</li>
+<li><strong><a href="api/fus.client/">fus</a></strong> — FUS protocol client and utilities</li>
+<li>Client implementation with session management and NONCE rotation</li>
+<li>Cryptographic operations and key derivation (AES-128, MD5)</li>
 <li>Firmware version parsing and normalization</li>
+<li>Device ID validation (IMEI/Serial TAC)</li>
 <li>
-<p>Device ID validation (IMEI/Serial)</p>
+<p>Error handling with FUSError subclasses</p>
 </li>
 <li>
-<p><strong><a href="api/download.service/">download</a></strong> - High-level download service</p>
+<p><strong><a href="api/download.service/">download</a></strong> — High-level download service</p>
 </li>
-<li>Firmware repository management</li>
+<li>Firmware repository management (one record per version)</li>
 <li>FOTA version checking with IMEI logging</li>
-<li>Smart download (skips if already in repository)</li>
+<li>Smart download (skips if already cached)</li>
 <li>On-demand decryption with cached logic values</li>
 <li>Configuration and path management</li>
+<li>
+<p>Status tracking (ok/error/denied/unauthorized/throttled/unknown)</p>
+</li>
+<li>
+<p><strong><a href="api/device/">device</a></strong> — Device detection and information reading</p>
+</li>
+<li><strong>AT Commands</strong> (normal/recovery mode): <code>read_device_info_at()</code></li>
+<li><strong>Odin Protocol</strong> (download mode): <code>read_device_info()</code>, <code>is_odin_mode()</code></li>
+<li>Auto-detect via <code>detect_download_mode_devices()</code></li>
+<li>Cross-platform support (Windows/Linux/macOS)</li>
 </ul>
 <h2 id="documentation-sections">Documentation Sections<a class="headerlink" href="#documentation-sections" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Core API</strong> - FUS client, cryptography, device validation</li>
-<li><strong>Download API</strong> - Service layer, repositories, configuration</li>
-<li><strong>Database</strong> - Schema documentation and repository patterns</li>
+<li><strong><a href="api/fus.client/">Core API</a></strong> — FUS client, cryptography, device validation, errors</li>
+<li><strong><a href="api/download.service/">Download API</a></strong> — Service layer, repositories, configuration</li>
+<li><strong><a href="api/device/">Device API</a></strong> — Device detection (AT/Odin protocols), models, errors</li>
+<li><strong><a href="database/schema/">Database</a></strong> — Schema documentation and repository patterns</li>
 </ul>
 <h2 id="license">License<a class="headerlink" href="#license" title="Permanent link">&para;</a></h2>
-<p>This project is MIT licensed. See the LICENSE file for details.</p>
+<p>This project is MIT licensed. See the <a href="https://github.com/yanuino/nanosamfw/blob/main/LICENSE">LICENSE</a> file for details.</p>
+<p>Built upon <a href="https://github.com/keklick1337/gnsf">GNSF</a> by <a href="https://github.com/keklick1337">keklick1337</a> — thanks for the excellent foundation!</p>
 <h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
 <p>Contributions are welcome! Please ensure:</p>
 <ul>
-<li>Code follows PEP 8 and project style guidelines (100 char line length)</li>
-<li>Type hints are provided for all public APIs</li>
-<li>Google-style docstrings document all functions</li>
-<li>Tests cover new functionality</li>
+<li><strong>Code Style</strong>: PEP 8, 100-char line length (Black + Pylint enforced)</li>
+<li><strong>Type Hints</strong>: Required for all function parameters and return values</li>
+<li><strong>Docstrings</strong>: Google-style with proper <code>Args:</code>, <code>Returns:</code>, <code>Raises:</code> sections</li>
+<li><strong>Testing</strong>: Manual validation scripts included; test against real Samsung servers</li>
 </ul>
 <h2 id="links">Links<a class="headerlink" href="#links" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="https://github.com/yanuino/nanosamfw">GitHub Repository</a></li>
 <li><a href="https://github.com/yanuino/nanosamfw/issues">Issue Tracker</a></li>
+<li><a href="https://github.com/yanuino/nanosamfw/releases">Releases</a></li>
+<li><a href="https://yanuino.github.io/nanosamfw/">Documentation</a></li>
 </ul>
 
 
@@ -1568,7 +1638,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="December 9, 2025 10:22:28 CET"><span class="timeago" datetime="2025-12-09T10:22:28+01:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="December 9, 2025 10:22:28 CET">2025-12-09</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="December 9, 2025 12:03:47 CET"><span class="timeago" datetime="2025-12-09T12:03:47+01:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="December 9, 2025 12:03:47 CET">2025-12-09</span>
   </span>
 
     

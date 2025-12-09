@@ -1132,12 +1132,17 @@
 
 <h1 id="database-schema">Database Schema<a class="headerlink" href="#database-schema" title="Permanent link">&para;</a></h1>
 <p>This document describes the database schema used by nanosamfw for tracking firmware in the repository and IMEI operations.</p>
+<p>{% if config.extra.release_tag %}</p>
+<blockquote>
+<p _="%" endif="endif"><strong>Release {{ config.extra.release_tag }}</strong></p>
+</blockquote>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>The application uses SQLite for local data persistence with two main tables:</p>
+<p>The application uses SQLite (WAL mode, autocommit) for local data persistence with two main tables:</p>
 <ul>
-<li><strong>firmware</strong> - Firmware repository with metadata from FUS inform responses</li>
-<li><strong>imei_log</strong> - Logs IMEI-based firmware queries and upgrade operations</li>
+<li><strong>firmware</strong> — Firmware repository with metadata from FUS inform responses</li>
+<li><strong>imei_log</strong> — Logs IMEI-based firmware queries and FUS operation status</li>
 </ul>
+<p>All timestamps are in ISO 8601 format (UTC). Triggers automatically maintain <code>updated_at</code> fields.</p>
 <h2 id="tables">Tables<a class="headerlink" href="#tables" title="Permanent link">&para;</a></h2>
 <h3 id="firmware">firmware<a class="headerlink" href="#firmware" title="Permanent link">&para;</a></h3>
 <p>Firmware repository storing one record per firmware version with all metadata from Samsung FUS servers.</p>
@@ -1363,7 +1368,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="December 9, 2025 10:22:28 CET"><span class="timeago" datetime="2025-12-09T10:22:28+01:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="December 9, 2025 10:22:28 CET">2025-12-09</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="December 9, 2025 12:03:47 CET"><span class="timeago" datetime="2025-12-09T12:03:47+01:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="December 9, 2025 12:03:47 CET">2025-12-09</span>
   </span>
 
     
