@@ -24,7 +24,7 @@ from typing import Optional, Tuple
 import requests
 
 from .config import DEFAULT_CONFIG
-from .errors import FOTAError, FOTAParsingError
+from .errors import FOTAModelOrRegionNotFound, FOTANoFirmware, FOTAParsingError
 
 
 def normalize_vercode(vercode: str) -> str:
@@ -222,11 +222,10 @@ def get_latest_version(model: str, region: str) -> str:
         timeout=timeout,
     )
     if req.status_code == 403:
-        raise FOTAError.ModelOrRegionNotFound(model, region)
+        raise FOTAModelOrRegionNotFound(model, region)
     req.raise_for_status()
     root = ET.fromstring(req.text)
-    print(req.text)
     latest = root.find("./firmware/version/latest").text  # type: ignore
     if latest is None:
-        raise FOTAError.NoFirmware(model, region)
+        raise FOTANoFirmware(model, region)
     return normalize_vercode(latest)

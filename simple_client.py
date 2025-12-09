@@ -1,125 +1,167 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2025 Yannick Locque (yanuino)
+"""Examples of using nanosamfw: high-level download/decrypt and raw FUS flow."""
 
-import xml.etree.ElementTree as ET
-from pathlib import Path
-from xml.dom import minidom
+# pylint: disable=all  # Disable informational messages for this file due to draft code
 
 from tqdm import tqdm
 
+from download import download_and_decrypt
+from download.db import init_db
 from fus import FUSClient, get_latest_version, get_v4_key
 from fus.decrypt import decrypt_file
 from fus.firmware import normalize_vercode, read_firmware_info
 from fus.messages import build_binary_inform, build_binary_init
 from fus.responses import parse_inform
 
-model, region = "SM-S908B", "EUX"  # EUX
-tac: str = "35297624"  # 8-digit TAC code
-imei: str = "350048582852237"
-ver: str = get_latest_version(model, region)  # latest via version.xml FOTA
 
-info = read_firmware_info(ver)
-print(f"Latest: {ver}\nBL: {info['bl']}\nDate: {info['date']}\nIter: {info['it']}")
+def main_high_level(model: str, csc: str, device_id: str) -> None:
+    """High-level API: download_and_decrypt with unified progress callback.
 
-# key = get_v4_key(ver, model, region, imei)
-# print(f"Decryption key: {key.hex()}")  # type: ignore
+    Args:
+        model: Device model identifier (e.g., "SM-A146P").
+        csc: Region/CSC code (e.g., "EUX").
+        device_id: IMEI or serial.
+    """
+    # Initialize the database
+    init_db()
 
-client = FUSClient()
-ver: str = normalize_vercode(ver)
-print(f"Normalized version: {ver}")
+    def unified_progress_cb(stage: str, done: int, total: int) -> None:
+        if not hasattr(unified_progress_cb, "bars_store"):
+            unified_progress_cb.bars_store = {}  # type: ignore[attr-defined]
+            unified_progress_cb.last_store = {}  # type: ignore[attr-defined]
+            unified_progress_cb.total_store = {}  # type: ignore[attr-defined]
 
-inform_xml = client.inform(
-    build_binary_inform(fwv=ver, model=model, region=region, device_id=imei, nonce=client.nonce)
-)
+        bars = unified_progress_cb.bars_store  # type: ignore[attr-defined]
+        last = unified_progress_cb.last_store  # type: ignore[attr-defined]
+        totals = unified_progress_cb.total_store  # type: ignore[attr-defined]
+
+        if stage not in bars or total != totals.get(stage) or done < last.get(stage, 0):
+            if stage in bars:
+                bars[stage].close()
+            bars[stage] = tqdm(total=total, unit="B", unit_scale=True, desc=stage.capitalize(), leave=True)
+            last[stage] = 0
+            totals[stage] = total
+
+        delta = done - last[stage]
+        if delta > 0:
+            bars[stage].update(delta)
+            last[stage] = done
+
+    firmware, decrypted = download_and_decrypt(
+        model=model,
+        csc=csc,
+        device_id=device_id,
+        current_firmware="",
+        resume=True,
+        progress_cb=unified_progress_cb,
+    )
+
+    print()
+    print("✅ Complete!")
+    print(f"Version: {firmware.version_code}")
+    print(f"Decrypted file: {decrypted}")
 
 
-raw = ET.tostring(inform_xml, encoding="unicode")
-pretty = minidom.parseString(raw).toprettyxml(indent="  ")
+def main_raw_fus(model: str, region: str, imei: str) -> None:
+    """Raw FUS flow: inform → init → stream → decrypt (no download package).
 
-print(f"Inform response received: {pretty}")
+    Args:
+        model: Device model identifier.
+        region: Region/CSC code.
+        imei: Device IMEI.
+    """
 
-info_inform = parse_inform(inform_xml)
-print(
-    f"Inform info: Latest FW: {info_inform.latest_fw_version}, ",
-    f"Logic: {info_inform.logic_value_factory}, ",
-    f"Filename: {info_inform.filename},",
-    f"Path: {info_inform.path},",
-    f"Size: {info_inform.size_bytes} bytes",
-)
+    ver = get_latest_version(model, region)
+    info = read_firmware_info(ver)
+    print(f"Latest: {ver}\nBL: {info['bl']}\nDate: {info['date']}\nIter: {info['it']}")
 
+    client = FUSClient()
+    ver = normalize_vercode(ver)
+    print(f"Normalized version: {ver}")
 
-# --- Download and decrypt via FUS only (no download module) ---
-print("\nDownloading via FUS (inform → init → stream)...")
+    inform_xml = client.inform(
+        build_binary_inform(fwv=ver, model=model, region=region, device_id=imei, nonce=client.nonce)
+    )
+    info_inform = parse_inform(inform_xml)
+    print(
+        f"Inform info: Latest FW: {info_inform.latest_fw_version}, ",
+        f"Logic: {info_inform.logic_value_factory}, ",
+        f"Filename: {info_inform.filename},",
+        f"Path: {info_inform.path},",
+        f"Size: {info_inform.size_bytes} bytes",
+    )
 
-# Use the already-parsed inform info
-fname = info_inform.filename
-srv_path = info_inform.path
-expected = info_inform.size_bytes
+    # Authorize the download (BinaryInit)
+    client.init(build_binary_init(info_inform.filename, client.nonce))
 
-# Authorize the download (BinaryInit) — expects only the filename
-init_xml = client.init(build_binary_init(fname, client.nonce))
-raw2 = ET.tostring(init_xml, encoding="unicode")
-pretty = minidom.parseString(raw2).toprettyxml(indent="  ")
-print(f"Init response received: {raw2}")
+    # Prepare paths
+    from pathlib import Path
 
-# Prepare output paths (downloads/<model>/<region>/filename.enc4)
-out_dir = Path("data") / model.replace("/", "_") / region.replace("/", "_")
-if not out_dir.exists():
+    out_dir = Path("data") / model.replace("/", "_") / region.replace("/", "_")
     out_dir.mkdir(parents=True, exist_ok=True)
-enc_path = out_dir / fname
-part_path = enc_path.with_suffix(enc_path.suffix + ".part")
+    enc_path = out_dir / info_inform.filename
+    part_path = enc_path.with_suffix(enc_path.suffix + ".part")
 
-# Resume if a partial exists
-start = part_path.stat().st_size if part_path.exists() else 0
-# Concatenate path + filename (path already ends with /, so no extra separator)
-remote = srv_path + fname if srv_path else fname
-print(f"Streaming from: {remote}")
-resp = client.stream(remote, start=start)
-mode = "ab" if start > 0 else "wb"
-written = start
-with open(part_path, mode) as f, tqdm(
-    total=expected,
-    initial=start,
-    unit="B",
-    unit_scale=True,
-    unit_divisor=1024,
-    desc="Downloading",
-) as pbar:
-    for chunk in resp.iter_content(chunk_size=1024 * 1024):
-        if not chunk:
-            continue
-        f.write(chunk)
-        written += len(chunk)
-        pbar.update(len(chunk))
+    # Resume if a partial exists
+    start = part_path.stat().st_size if part_path.exists() else 0
+    remote = (info_inform.path or "") + info_inform.filename
+    print(f"Streaming from: {remote}")
+    resp = client.stream(remote, start=start)
+    mode = "ab" if start > 0 else "wb"
+    written = start
+    with open(part_path, mode) as f, tqdm(
+        total=info_inform.size_bytes,
+        initial=start,
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        desc="Downloading",
+    ) as pbar:
+        for chunk in resp.iter_content(chunk_size=1024 * 1024):
+            if not chunk:
+                continue
+            f.write(chunk)
+            written += len(chunk)
+            pbar.update(len(chunk))
 
-if expected and written != expected:
-    raise RuntimeError(f"Size mismatch: got {written}, expected {expected}")
+    if info_inform.size_bytes and written != info_inform.size_bytes:
+        raise RuntimeError(f"Size mismatch: got {written}, expected {info_inform.size_bytes}")
 
-# Atomic finalize
-part_path.replace(enc_path)
-print(f"Encrypted firmware: {enc_path}")
+    # Atomic finalize
+    part_path.replace(enc_path)
+    print(f"Encrypted firmware: {enc_path}")
 
-# Decrypt (ENC4) → same name without extension
-print("Decrypting...")
-dec_path = enc_path.with_suffix("")
-if not key:
-    raise RuntimeError("Failed to derive ENC4 key; cannot decrypt.")
+    # Decrypt (ENC4) → key from FUS helper
+    print("Decrypting...")
+    dec_path = enc_path.with_suffix("")
+    key = get_v4_key(ver, model, region, imei)
+    if key is None:
+        raise RuntimeError("Failed to derive ENC4 key; cannot decrypt.")
+    total_enc = enc_path.stat().st_size
+    with tqdm(
+        total=total_enc,
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        desc="Decrypting",
+    ) as pbar:
 
-# Progress bar for decryption (tracks encrypted bytes processed)
-total_enc = enc_path.stat().st_size
-with tqdm(
-    total=total_enc,
-    unit="B",
-    unit_scale=True,
-    unit_divisor=1024,
-    desc="Decrypting",
-) as pbar:
+        def _dec_cb(done: int, total: int) -> None:
+            if pbar.total != total:
+                pbar.total = total
+            pbar.update(done - pbar.n)
 
-    def _dec_cb(done: int, total: int) -> None:
-        # Sync total if needed (should match total_enc) and advance by delta
-        if pbar.total != total:
-            pbar.total = total
-        pbar.update(done - pbar.n)
+        decrypt_file(str(enc_path), str(dec_path), key=key, progress_cb=_dec_cb)
+    print(f"Decrypted to: {dec_path}")
 
-    decrypt_file(str(enc_path), str(dec_path), key=key, progress_cb=_dec_cb)
-print(f"Decrypted to: {dec_path}")
+
+if __name__ == "__main__":
+    # Defaults (edit as needed or add argparse)
+    default_model = "SM-A146P"
+    default_csc = "EUX"
+    default_imei = "352976245064055"
+
+    # High-level download service (recommended)
+    # main_high_level(default_model, default_csc, default_imei)
+
+    # Raw FUS-only flow (uncomment to run)
+    main_raw_fus(default_model, default_csc, default_imei)

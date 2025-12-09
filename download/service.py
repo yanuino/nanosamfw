@@ -10,12 +10,13 @@ decryption services.
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 
 from fus.client import FUSClient
 from fus.decrypt import decrypt_file, get_v4_key_from_logic
-from fus.errors import DownloadError
+from fus.errors import DownloadError, FUSError
 from fus.firmware import get_latest_version, normalize_vercode
 from fus.messages import build_binary_inform, build_binary_init
 from fus.responses import parse_inform
@@ -23,48 +24,79 @@ from fus.responses import parse_inform
 from .config import PATHS
 from .firmware_repository import (
     FirmwareRecord,
+    delete_firmware,
     find_firmware,
+    list_firmware,
     update_decrypted_path,
     upsert_firmware,
 )
-from .imei_repository import add_imei_event
+from .imei_repository import upsert_imei_event
+
+# Generate unique session ID for this application instance
+_SESSION_ID = str(uuid.uuid4())
 
 
-def check_firmware(model: str, csc: str, device_id: str) -> str:
-    """Check latest available firmware version via FOTA.
+def get_session_id() -> str:
+    """Get the current application session ID.
 
-    Queries Samsung FOTA servers for the latest firmware version and logs
-    the request to imei_log database.
+    Returns:
+        str: UUID string identifying this application session.
+    """
+    return _SESSION_ID
+
+
+def check_and_prepare_firmware(
+    model: str,
+    csc: str,
+    device_id: str,
+    current_firmware: str,  # noqa: ARG001 - Reserved for future comparison logic
+) -> tuple[str, bool]:
+    """Check latest firmware via FOTA and determine if cached in repository.
+
+    Always queries Samsung FOTA for latest version. Logs to imei_log with
+    status_fus="unknown" (no FUS query yet). Then checks firmware table
+    to see if that version is already downloaded.
 
     Args:
         model: Device model identifier (e.g., SM-G998B).
         csc: Country Specific Code.
         device_id: Device IMEI or serial number.
+        current_firmware: Current device firmware version (for logging/comparison).
 
     Returns:
-        Normalized firmware version string (4-part format: AAA/BBB/CCC/DDD).
+        (latest_version, is_cached): Latest version from FOTA and whether
+            it exists in local repository.
 
     Raises:
-        FUSError: If version lookup fails.
+        FOTAError: If FOTA query fails.
 
     Example:
-        version = check_firmware("SM-A146P", "EUX", "352976245060954")
-        print(f"Latest: {version}")
+        latest, cached = check_and_prepare_firmware(
+            "SM-A146P", "EUX", "352976245060954", "A146PXXS6CXK3/..."
+        )
+        if cached:
+            print(f"Version {latest} already downloaded")
     """
+    # 1. Always query FOTA for latest version
     version = get_latest_version(model, csc)
     version_norm = normalize_vercode(version)
 
-    # Log FOTA check to database
-    add_imei_event(
+    # 2. Log device detection with FOTA result (status_fus="unknown" - no FUS download yet)
+    upsert_imei_event(
+        session_id=_SESSION_ID,
         imei=device_id,
         model=model,
         csc=csc,
         version_code=version_norm,
-        status_fus="ok",
-        status_upgrade="unknown",
+        status_fus="unknown",  # FUS download not attempted yet
+        status_upgrade="unknown",  # Firmware flashing not implemented
     )
 
-    return version_norm
+    # 3. Check if this specific version exists in repository
+    cached = find_firmware(version_norm)
+    is_cached = cached is not None and Path(cached.encrypted_file_path).exists()
+
+    return version_norm, is_cached
 
 
 def get_or_download_firmware(
@@ -162,16 +194,6 @@ def get_or_download_firmware(
     )
     upsert_firmware(rec)
 
-    # Log download to IMEI log
-    add_imei_event(
-        imei=device_id,
-        model=model,
-        csc=csc,
-        version_code=version_norm,
-        status_fus="ok",
-        status_upgrade="ok",
-    )
-
     return rec
 
 
@@ -239,51 +261,144 @@ def download_and_decrypt(
     model: str,
     csc: str,
     device_id: str,
+    current_firmware: str,
     version: Optional[str] = None,
     *,
     output_path: Optional[str] = None,
     resume: bool = True,
-    progress_cb: Optional[Callable[[int, int], None]] = None,
+    progress_cb: Optional[Callable[[str, int, int], None]] = None,
 ) -> tuple[FirmwareRecord, str]:
     """Complete workflow: check FOTA, download, and decrypt firmware.
 
-    Convenience function that performs the full workflow:
-    1. Check latest version via FOTA (if version not specified)
-    2. Download firmware to repository (if not already present)
+    Performs the full workflow:
+    1. Query FOTA for latest version and check repository cache
+    2. Download encrypted firmware if not cached (with resume support)
     3. Decrypt firmware to output directory
+    4. Update imei_log with FUS download status
+
+    A single optional ``progress_cb`` is invoked for both stages with:
+        progress_cb(stage, done_bytes, total_bytes)
+    where ``stage`` is one of ``"download"`` or ``"decrypt"``.
 
     Args:
         model: Device model identifier.
-        csc: Country Specific Code.
-        device_id: Device IMEI or serial number.
-        version: Optional specific version to download. If None, fetches latest.
-        output_path: Optional custom decryption output path.
-        resume: If True, resume partial downloads.
-        progress_cb: Optional progress callback for download and decrypt.
+        csc: Country Specific Code (region).
+        device_id: Device IMEI or serial/blank for download mode.
+        current_firmware: Current device firmware version.
+        version: Specific version to fetch; if None latest from FOTA is used.
+        output_path: Optional explicit decrypted output path.
+        resume: Resume partial downloads when True.
+        progress_cb: Unified callback for both stages.
 
     Returns:
-        Tuple of (FirmwareRecord, decrypted_file_path).
-
-    Example:
-        firmware, decrypted = download_and_decrypt(
-            "SM-A146P", "EUX", "352976245060954",
-            decrypt=True
-        )
-        print(f"Version: {firmware.version_code}")
-        print(f"Decrypted: {decrypted}")
+        (FirmwareRecord, decrypted_file_path)
     """
-    # 1. Resolve version
+    # 1. Resolve version and check cache
     if not version:
-        version = check_firmware(model, csc, device_id)
+        version, _is_cached = check_and_prepare_firmware(model, csc, device_id, current_firmware)
     else:
         version = normalize_vercode(version)
 
     # 2. Download to repository
-    firmware = get_or_download_firmware(
-        version, model, csc, device_id, resume=resume, progress_cb=progress_cb
+    def _dl_cb(done: int, total: int):
+        if progress_cb:
+            progress_cb("download", done, total)
+
+    try:
+        firmware = get_or_download_firmware(
+            version, model, csc, device_id, resume=resume, progress_cb=_dl_cb if progress_cb else None
+        )
+    except FUSError:
+        # Update imei_log with error status before re-raising
+        # Catches InformError and all its subtypes (BadStatus, MissingStatus, etc.)
+        upsert_imei_event(
+            session_id=_SESSION_ID,
+            imei=device_id,
+            model=model,
+            csc=csc,
+            version_code=version,
+            status_fus="error",
+            status_upgrade="unknown",
+        )
+        raise
+
+    # Update log with successful firmware retrieval (whether downloaded or cached)
+    # This updates the existing session record created by check_and_prepare_firmware
+    upsert_imei_event(
+        session_id=_SESSION_ID,
+        imei=device_id,
+        model=model,
+        csc=csc,
+        version_code=version,
+        status_fus="ok",  # Firmware obtained successfully
+        status_upgrade="unknown",  # Firmware flashing not implemented
     )
 
     # 3. Decrypt
-    decrypted_path = decrypt_firmware(version, output_path, progress_cb=progress_cb)
+    def _dec_cb(done: int, total: int):
+        if progress_cb:
+            progress_cb("decrypt", done, total)
+
+    decrypted_path = decrypt_firmware(
+        version,
+        output_path,
+        progress_cb=_dec_cb if progress_cb else None,
+    )
 
     return firmware, decrypted_path
+
+
+def cleanup_repository(
+    progress_cb: Optional[Callable[[int, int, int, int, int], None]] = None,
+) -> Dict[str, int]:
+    """Clean repository inconsistencies.
+
+    Verifies each firmware record's encrypted file exists. If missing:
+        * Deletes decrypted file if present.
+        * Deletes database record.
+
+    Args:
+        progress_cb: Optional callback invoked as
+            progress_cb(processed, total, missing_encrypted, records_deleted, decrypted_deleted)
+
+    Returns:
+        Summary statistics dict with keys:
+            total_records, missing_encrypted, decrypted_deleted, records_deleted
+    """
+    stats = {
+        "total_records": 0,
+        "missing_encrypted": 0,
+        "decrypted_deleted": 0,
+        "records_deleted": 0,
+    }
+
+    records = list(list_firmware())
+    total = len(records)
+    for idx, rec in enumerate(records, start=1):
+        stats["total_records"] += 1
+        enc_path = Path(rec.encrypted_file_path)
+        if not enc_path.is_file():
+            stats["missing_encrypted"] += 1
+            # remove decrypted file if exists
+            if rec.decrypted_file_path:
+                dec_path = Path(rec.decrypted_file_path)
+                try:
+                    if dec_path.exists():
+                        dec_path.unlink()
+                        stats["decrypted_deleted"] += 1
+                except OSError:
+                    # Ignore errors deleting decrypted file (e.g., file missing, permission denied)
+                    pass
+            delete_firmware(rec.version_code)
+            stats["records_deleted"] += 1
+
+        if progress_cb:
+            progress_cb(
+                idx,
+                total,
+                stats["missing_encrypted"],
+                stats["records_deleted"],
+                stats["decrypted_deleted"],
+            )
+
+    return stats

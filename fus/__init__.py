@@ -43,6 +43,8 @@ from .errors import (
     DeviceIdError,
     DownloadError,
     FOTAError,
+    FOTAModelOrRegionNotFound,
+    FOTANoFirmware,
     FOTAParsingError,
     FUSError,
     InformError,

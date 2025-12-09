@@ -23,7 +23,7 @@ class FUSError(Exception):
     """Base class for FUS-related errors with optional predefined messages."""
 
     # Error subtypes with built-in messages
-    class NoFirmware(Exception):
+    class NoFirmware(Exception):  # Keep as Exception for backward compatibility
         """No firmware available for the specified model/region."""
 
         def __init__(self, model: str = "", region: str = ""):
@@ -33,32 +33,37 @@ class FUSError(Exception):
             super().__init__(msg)
 
 
-class AuthError(FUSError): ...
+class AuthError(FUSError):
+    """Raised for authentication failures in FUS operations.
+
+    Typical causes include invalid or expired NONCE, signature mismatch,
+    or blocked client credentials when contacting Samsung FUS endpoints.
+    """
 
 
 class InformError(FUSError):
     """Raised for protocol or information errors in FUS communication."""
 
     # Error subtypes with built-in messages
-    class MissingStatus(Exception):
+    class MissingStatus(FUSError):
         """Missing Status field in inform response."""
 
         def __init__(self):
             super().__init__("Missing Status field in inform response")
 
-    class BadStatus(Exception):
+    class BadStatus(FUSError):
         """Non-200 status code in inform response."""
 
         def __init__(self, status: int):
             super().__init__(f"DownloadBinaryInform returned {status}")
 
-    class MissingField(Exception):
+    class MissingField(FUSError):
         """Required field missing from inform response."""
 
         def __init__(self, field_name: str):
             super().__init__(f"Missing {field_name} in inform response")
 
-    class DecryptionKeyError(Exception):
+    class DecryptionKeyError(FUSError):
         """Could not obtain decryption key from inform response."""
 
         def __init__(self, model: str = "", region: str = "", device_id: str = ""):
@@ -80,7 +85,7 @@ class DownloadError(FUSError):
     """Raised when a firmware download fails or is incomplete."""
 
     # Error subtypes with built-in messages
-    class HTTPError(Exception):
+    class HTTPError(FUSError):
         """HTTP error during download."""
 
         def __init__(self, status_code: int, url: str = ""):
@@ -94,15 +99,13 @@ class DecryptError(FUSError):
     """Raised when firmware decryption fails."""
 
     # Error subtypes with built-in messages
-    class DeviceIdRequired(Exception):
+    class DeviceIdRequired(FUSError):
         """Device ID required for ENC4 decryption."""
 
         def __init__(self):
-            super().__init__(
-                "Device ID (IMEI or Serial) required for ENC4 key (Samsung requirement)"
-            )
+            super().__init__("Device ID (IMEI or Serial) required for ENC4 key (Samsung requirement)")
 
-    class InvalidBlockSize(Exception):
+    class InvalidBlockSize(FUSError):
         """Invalid encrypted file block size."""
 
         def __init__(self, size: int = 0):
@@ -116,7 +119,7 @@ class DeviceIdError(FUSError):
     """Raised by fus.deviceid helpers on invalid TAC/IMEI/serial input."""
 
     # Error subtypes with built-in messages
-    class InvalidTAC(Exception):
+    class InvalidTAC(FUSError):
         """TAC validation failed."""
 
         def __init__(self, tac: str = ""):
@@ -129,24 +132,25 @@ class DeviceIdError(FUSError):
 class FOTAError(Exception):
     """Base class for FOTA endpoint errors with optional predefined messages."""
 
-    # Error subtypes with built-in messages
-    class ModelOrRegionNotFound(Exception):
-        """Model or region not found (HTTP 403)."""
 
-        def __init__(self, model: str = "", region: str = ""):
-            msg = "Model or region not found (403)"
-            if model or region:
-                msg += f": {model}/{region}"
-            super().__init__(msg)
+class FOTAModelOrRegionNotFound(FOTAError):
+    """Model or region not found (HTTP 403)."""
 
-    class NoFirmware(Exception):
-        """No firmware available in FOTA response."""
+    def __init__(self, model: str = "", region: str = ""):
+        msg = "Model or region not found (403)"
+        if model or region:
+            msg += f": {model}/{region}"
+        super().__init__(msg)
 
-        def __init__(self, model: str = "", region: str = ""):
-            msg = "No latest firmware available"
-            if model or region:
-                msg += f" for {model}/{region}"
-            super().__init__(msg)
+
+class FOTANoFirmware(FOTAError):
+    """No firmware available in FOTA response."""
+
+    def __init__(self, model: str = "", region: str = ""):
+        msg = "No latest firmware available"
+        if model or region:
+            msg += f" for {model}/{region}"
+        super().__init__(msg)
 
 
 class FOTAParsingError(FOTAError):
