@@ -387,6 +387,7 @@ def cleanup_repository(
                         dec_path.unlink()
                         stats["decrypted_deleted"] += 1
                 except OSError:
+                    # Ignore errors deleting decrypted file (e.g., file missing, permission denied)
                     pass
             delete_firmware(rec.version_code)
             stats["records_deleted"] += 1

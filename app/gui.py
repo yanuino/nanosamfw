@@ -135,6 +135,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                 try:
                     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("nanosamfw.GUI")
                 except (AttributeError, OSError):
+                    # Ignore failure to set AppUserModelID; not critical for UI operation
                     pass
 
                 # Try app_icon.ico or any .ico
