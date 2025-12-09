@@ -2,12 +2,18 @@
 
 This document describes the database schema used by nanosamfw for tracking firmware in the repository and IMEI operations.
 
+{% if config.extra.release_tag %}
+> **Release {{ config.extra.release_tag }}**
+{% endif %}
+
 ## Overview
 
-The application uses SQLite for local data persistence with two main tables:
+The application uses SQLite (WAL mode, autocommit) for local data persistence with two main tables:
 
-- **firmware** - Firmware repository with metadata from FUS inform responses
-- **imei_log** - Logs IMEI-based firmware queries and upgrade operations
+- **firmware** — Firmware repository with metadata from FUS inform responses
+- **imei_log** — Logs IMEI-based firmware queries and FUS operation status
+
+All timestamps are in ISO 8601 format (UTC). Triggers automatically maintain `updated_at` fields.
 
 ## Tables
 

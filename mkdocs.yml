@@ -93,6 +93,8 @@ nav:
 
 
 extra:
+  release_tag: !env RELEASE_TAG
+  release_title: !env RELEASE_TITLE
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/yanuino/nanosamfw
