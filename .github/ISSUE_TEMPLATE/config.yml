@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://yanuino.github.io/nanosamfw/
+    about: Check the documentation for guides and API reference
+  - name: Discussions
+    url: https://github.com/yanuino/nanosamfw/discussions
+    about: Ask questions and discuss ideas with the community
