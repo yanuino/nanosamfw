@@ -163,7 +163,7 @@ if latest != info.fwver:
 ## Development Guidelines
 
 ### Code Style (from pyproject.toml and .vscode/settings.json)
-- **Line Length**: 100 chars max (Black + Pylint enforced, ruler visible in editor)
+- **Line Length**: 120 chars max (Black + Pylint enforced, ruler visible in editor)
 - **Type Hints**: Required for all function parameters and return values
   - Pylance type checking mode: "standard"
   - Inlay hints enabled for variables and function returns
@@ -233,7 +233,7 @@ def list_downloads(...) -> Iterable[DownloadRecord]:
 
 ### Testing & Validation
 - No test suite currently - use manual validation scripts:
-  - `simple_client.py` / `simple_client2.py` - Basic firmware download
+  - `simple_client.py` - Basic firmware download
   - `example_device_detection.py` - AT command device detection (normal/recovery mode)
   - `example_odin_device_detection.py` - Odin protocol device detection (download mode)
 - Test against real Samsung servers (be mindful of rate limiting)
