@@ -624,6 +624,9 @@ class FirmwareDownloaderApp(ctk.CTk):
                     last_device_model = device.model
                     self._log("info", f"Device connected: {device.model}/{device.sales_code}")
 
+                    # Clear old component paths from previous device
+                    self._clear_component_entries()
+
                     # Device found - update UI
                     self.update_device_fields(
                         device.model,
@@ -833,7 +836,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                     last_device_model = None
                     self.update_status("Device disconnected. Waiting for new device...")
                     self._set_device_placeholders()
-                    self._clear_component_entries()
+                    # Keep component paths visible until new device connects
                     self.update_progress_message("Waiting for device", "info")
 
                 # Wait before checking again
@@ -847,7 +850,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                 last_device_model = None
                 self.update_status("Device error detected - Retrying detection")
                 self._set_device_placeholders()
-                self._clear_component_entries()
+                # Keep component paths visible until new device connects
                 # Keep progress zone clean of communication errors
                 self.update_progress_message("Waiting for device", "info")
                 time.sleep(2)
@@ -859,7 +862,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                 last_device_model = None
                 self.update_status("Error occurred - Retrying detection")
                 self._set_device_placeholders()
-                self._clear_component_entries()
+                # Keep component paths visible until new device connects
                 self.update_progress_message("Waiting for device", "info")
                 time.sleep(2)
 
