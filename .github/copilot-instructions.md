@@ -163,7 +163,7 @@ if latest != info.fwver:
 ## Development Guidelines
 
 ### Code Style (from pyproject.toml and .vscode/settings.json)
-- **Line Length**: 100 chars max (Black + Pylint enforced, ruler visible in editor)
+- **Line Length**: 120 chars max (Black + Pylint enforced, ruler visible in editor)
 - **Type Hints**: Required for all function parameters and return values
   - Pylance type checking mode: "standard"
   - Inlay hints enabled for variables and function returns
