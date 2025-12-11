@@ -359,7 +359,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                         self._log("info", f"Copied {label} path to clipboard: {value}")
                         # Brief visual feedback
                         entry.configure(fg_color="#2CC985")
-                        self.after(200, lambda: entry.configure(fg_color=original_fg))
+                        self.after(1000, lambda: entry.configure(fg_color=original_fg))
                     except (OSError, RuntimeError) as ex:
                         self._log("error", f"Failed to copy to clipboard: {ex}")
 
