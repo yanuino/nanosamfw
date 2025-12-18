@@ -373,8 +373,8 @@ class FirmwareDownloaderApp(ctk.CTk):
 
             return entry
 
-        self.ap_entry = _make_comp_row(0, "AP")
-        self.bl_entry = _make_comp_row(1, "BL")
+        self.ap_entry = _make_comp_row(0, "BL")
+        self.bl_entry = _make_comp_row(1, "AP")
         self.cp_entry = _make_comp_row(2, "CP")
         self.csc_entry = _make_comp_row(3, "CSC")
         self.home_entry = _make_comp_row(4, "HOME", hidden=True)
