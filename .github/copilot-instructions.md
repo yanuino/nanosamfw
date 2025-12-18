@@ -33,7 +33,7 @@ The codebase is organized into three main packages:
        - AT+DEVCONINFO command for device information
        - Parses semicolon-delimited key-value format: `MN(model);VER(fw);PRD(sales);IMEI(imei);...`
        - Standard serial communication (115200 baud, no special flow control)
-       - Returns `ATDeviceInfo` dataclass with model, firmware_version, sales_code, imei
+       - Returns `ATDeviceInfo` dataclass with model, firmware_version (PDA/CSC/MODEM/BOOTLOADER), sales_code, imei
    - No platform restrictions (works on Windows, Linux, macOS)
    - Requires Samsung USB drivers on Windows for serial port access
 
@@ -85,7 +85,7 @@ from device import read_device_info_at
 device = read_device_info_at()  # Auto-detects first device
 # Or specify port: device = read_device_info_at("COM3")
 
-# Returns ATDeviceInfo with: model, firmware_version, sales_code, imei
+# Returns ATDeviceInfo with: model, firmware_version (PDA/CSC/MODEM/BOOTLOADER), sales_code, imei
 print(f"Model: {device.model}")
 print(f"Firmware: {device.firmware_version}")
 print(f"Region: {device.sales_code}")
@@ -158,7 +158,7 @@ if latest != info.fwver:
     - AT+DEVCONINFO command: `AT+DEVCONINFO\r\n`
     - Parses response format: `MN(model);VER(pda/csc/modem/bl);PRD(sales);IMEI(imei);...`
     - Communication: 115200 baud, standard serial (no special flow control)
-    - Returns: model, firmware_version (PDA), sales_code (PRD), imei
+    - Returns: model, firmware_version (full PDA/CSC/MODEM/BOOTLOADER), sales_code (PRD), imei
 
 ## Development Guidelines
 

@@ -27,7 +27,7 @@ class ATDeviceInfo:
 
     Attributes:
         model: Device model code (e.g., SM-G991B)
-        firmware_version: Current firmware version string
+        firmware_version: Full firmware version string (PDA/CSC/MODEM/BOOTLOADER)
         sales_code: 3-character CSC/region code (e.g., XAA, DBT)
         imei: International Mobile Equipment Identity (15 digits)
     """
@@ -100,8 +100,7 @@ def read_device_info_at(
 
     except serial.SerialException as ex:
         raise DeviceReadError(
-            f"Serial communication error on {port_name}: {ex}. "
-            "Verify device is connected and drivers are installed."
+            f"Serial communication error on {port_name}: {ex}. " "Verify device is connected and drivers are installed."
         ) from ex
 
 
@@ -140,9 +139,8 @@ def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
             # Extract required fields
             model = info_dict.get("MN", "")
 
-            # VER field contains: PDA/CSC/MODEM/BOOTLOADER
-            ver_parts = info_dict.get("VER", "").split("/")
-            firmware_version = ver_parts[0] if ver_parts else ""
+            # VER field contains: PDA/CSC/MODEM/BOOTLOADER (full version)
+            firmware_version = info_dict.get("VER", "")
 
             # PRD field is the sales/region code
             sales_code = info_dict.get("PRD", "")
@@ -158,6 +156,4 @@ def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
                     imei=imei,
                 )
 
-    raise DeviceReadError(
-        f"Failed to parse AT response from {port_name}. " f"Response: {response[:200]}"
-    )
+    raise DeviceReadError(f"Failed to parse AT response from {port_name}. " f"Response: {response[:200]}")
