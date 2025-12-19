@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS imei_log (
   fota_version     TEXT,            -- FOTA/FUS firmware version (AAA/BBB/CCC/DDD format, nullable)
   serial_number    TEXT,            -- Device serial number (SN from AT)
   lock_status      TEXT,            -- Device lock status (LOCK from AT)
+  aid              TEXT,            -- AID from AT (device/account identifier)
+  cc               TEXT,            -- CC from AT (country code)
   status_fus       TEXT NOT NULL DEFAULT 'unknown'
                       CHECK (status_fus IN ('ok','error','denied','unauthorized','throttled','unknown')),
   status_upgrade   TEXT NOT NULL DEFAULT 'unknown'
@@ -80,6 +82,12 @@ ON imei_log (model, csc, version_code);
 
 CREATE INDEX IF NOT EXISTS idx_imei_log__serial_number
 ON imei_log (serial_number);
+
+CREATE INDEX IF NOT EXISTS idx_imei_log__aid
+ON imei_log (aid);
+
+CREATE INDEX IF NOT EXISTS idx_imei_log__cc
+ON imei_log (cc);
 
 CREATE INDEX IF NOT EXISTS idx_imei_log__created_at
 ON imei_log (created_at);

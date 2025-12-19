@@ -26,6 +26,7 @@ from device import DeviceNotFoundError, read_device_info_at
 from device.errors import DeviceError
 from download import check_and_prepare_firmware, cleanup_repository, download_and_decrypt, init_db
 from download.config import PATHS
+from download.service import get_session_id
 from fus.errors import FOTAModelOrRegionNotFound, FOTANoFirmware, InformError
 
 
@@ -49,6 +50,9 @@ class FirmwareDownloaderApp(ctk.CTk):
 
         # Setup logging
         self._setup_logging()
+
+        # Log session ID from service
+        self.logger.info("Session ID: %s", get_session_id())
 
         # Load configuration
         self._load_config()
@@ -740,9 +744,10 @@ class FirmwareDownloaderApp(ctk.CTk):
                     # New device connection
                     device_connected = True
                     last_device_model = device.model
-                    self._log("info", f"Device connected: {device.model}/{device.sales_code}")
-                    self._log("info", f"Firmware: {device.firmware_version}")
+                    self._log("info", f"Device connected: {device.model}")
+                    self._log("info", f"CSC: {device.sales_code}, AID: {device.aid}, CC: {device.cc}")
                     self._log("info", f"IMEI: {device.imei},SN: {device.serial_number},LOCK: {device.lock_status}")
+                    self._log("info", f"Firmware: {device.firmware_version}")
 
                     # Clear old component paths from previous device
                     self._clear_component_entries()
@@ -760,7 +765,14 @@ class FirmwareDownloaderApp(ctk.CTk):
                     try:
                         self._log("info", f"Checking FOTA for {device.model}/{device.sales_code}")
                         latest, is_cached = check_and_prepare_firmware(
-                            device.model, device.sales_code, device.imei, device.firmware_version
+                            device.model,
+                            device.sales_code,
+                            device.imei,
+                            device.firmware_version,
+                            serial_number=device.serial_number,
+                            lock_status=device.lock_status,
+                            aid=device.aid,
+                            cc=device.cc,
                         )
                         self._log("info", f"FOTA returned version: {latest} (cached: {is_cached})")
 

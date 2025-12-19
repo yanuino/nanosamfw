@@ -49,7 +49,12 @@ def check_and_prepare_firmware(
     model: str,
     csc: str,
     device_id: str,
-    current_firmware: str,  # noqa: ARG001 - Reserved for future comparison logic
+    current_firmware: str,
+    *,
+    serial_number: Optional[str] = None,
+    lock_status: Optional[str] = None,
+    aid: Optional[str] = None,
+    cc: Optional[str] = None,
 ) -> tuple[str, bool]:
     """Check latest firmware via FOTA and determine if cached in repository.
 
@@ -77,17 +82,36 @@ def check_and_prepare_firmware(
         if cached:
             print(f"Version {latest} already downloaded")
     """
-    # 1. Always query FOTA for latest version
-    version = get_latest_version(model, csc)
-    version_norm = normalize_vercode(version)
-
-    # 2. Log device detection with FOTA result (status_fus="unknown" - no FUS download yet)
+    # 1. Log device detection with current firmware (status_fus="unknown")
     upsert_imei_event(
         session_id=_SESSION_ID,
         imei=device_id,
         model=model,
         csc=csc,
-        version_code=version_norm,
+        version_code=current_firmware,
+        serial_number=serial_number,
+        lock_status=lock_status,
+        aid=aid,
+        cc=cc,
+        status_fus="unknown",  # FUS download not attempted yet
+        status_upgrade="unknown",  # Firmware flashing not implemented
+    )
+
+    # 2. Query FOTA for latest version and update record with fota_version
+    version = get_latest_version(model, csc)
+    version_norm = normalize_vercode(version)
+
+    upsert_imei_event(
+        session_id=_SESSION_ID,
+        imei=device_id,
+        model=model,
+        csc=csc,
+        version_code=current_firmware,
+        fota_version=version_norm,
+        serial_number=serial_number,
+        lock_status=lock_status,
+        aid=aid,
+        cc=cc,
         status_fus="unknown",  # FUS download not attempted yet
         status_upgrade="unknown",  # Firmware flashing not implemented
     )
@@ -345,7 +369,8 @@ def download_and_decrypt(
             imei=device_id,
             model=model,
             csc=csc,
-            version_code=version,
+            version_code=current_firmware,
+            fota_version=version,
             status_fus="error",
             status_upgrade="unknown",
         )
@@ -358,7 +383,8 @@ def download_and_decrypt(
         imei=device_id,
         model=model,
         csc=csc,
-        version_code=version,
+        version_code=current_firmware,
+        fota_version=version,
         status_fus="ok",  # Firmware obtained successfully
         status_upgrade="unknown",  # Firmware flashing not implemented
     )

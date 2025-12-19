@@ -40,6 +40,8 @@ class ATDeviceInfo:
     imei: str
     serial_number: str = ""
     lock_status: str = ""
+    aid: str = ""
+    cc: str = ""
 
 
 def read_device_info_at(
@@ -158,6 +160,12 @@ def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
             # LOCK field (lock status)
             lock_status = info_dict.get("LOCK", "")
 
+            # AID field (Account/Android ID depending on device)
+            aid = info_dict.get("AID", "")
+
+            # CC field (Country Code)
+            cc = info_dict.get("CC", "")
+
             if model and firmware_version and sales_code:
                 return ATDeviceInfo(
                     model=model,
@@ -166,6 +174,8 @@ def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
                     imei=imei,
                     serial_number=serial_number,
                     lock_status=lock_status,
+                    aid=aid,
+                    cc=cc,
                 )
 
     raise DeviceReadError(f"Failed to parse AT response from {port_name}. " f"Response: {response[:200]}")

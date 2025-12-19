@@ -60,6 +60,8 @@ class IMEIEvent:
     fota_version: str | None = None
     serial_number: str | None = None
     lock_status: str | None = None
+    aid: str | None = None
+    cc: str | None = None
     status_fus: str = "unknown"  # ok/error/denied/unauthorized/throttled/unknown
     status_upgrade: str = "unknown"  # queued/in_progress/ok/failed/skipped/unknown
     created_at: str | None = None  # ISO-8601 UTC
@@ -77,6 +79,8 @@ def upsert_imei_event(
     fota_version: str | None = None,
     serial_number: str | None = None,
     lock_status: str | None = None,
+    aid: str | None = None,
+    cc: str | None = None,
     status_fus: str = "unknown",
     status_upgrade: str = "unknown",
     upgrade_at: str | None = None,
@@ -105,10 +109,10 @@ def upsert_imei_event(
     """
     sql = """
     INSERT INTO imei_log
-        (session_id, imei, model, csc, version_code, fota_version, serial_number, lock_status,
+        (session_id, imei, model, csc, version_code, fota_version, serial_number, lock_status, aid, cc,
          status_fus, status_upgrade, created_at, updated_at, upgrade_at)
     VALUES
-        (:session_id, :imei, :model, :csc, :version_code, :fota_version, :serial_number, :lock_status,
+        (:session_id, :imei, :model, :csc, :version_code, :fota_version, :serial_number, :lock_status, :aid, :cc,
          :status_fus, :status_upgrade, :created_at, :updated_at, :upgrade_at)
     ON CONFLICT(session_id, imei) DO UPDATE SET
         model=excluded.model,
@@ -117,6 +121,8 @@ def upsert_imei_event(
         fota_version=excluded.fota_version,
         serial_number=excluded.serial_number,
         lock_status=excluded.lock_status,
+        aid=excluded.aid,
+        cc=excluded.cc,
         status_fus=excluded.status_fus,
         status_upgrade=excluded.status_upgrade,
         updated_at=excluded.updated_at,
@@ -132,6 +138,8 @@ def upsert_imei_event(
         "fota_version": fota_version,
         "serial_number": serial_number,
         "lock_status": lock_status,
+        "aid": aid,
+        "cc": cc,
         "status_fus": status_fus,
         "status_upgrade": status_upgrade,
         "created_at": now,
@@ -153,6 +161,8 @@ def add_imei_event(
     fota_version: str | None = None,
     serial_number: str | None = None,
     lock_status: str | None = None,
+    aid: str | None = None,
+    cc: str | None = None,
     status_fus: str = "unknown",
     status_upgrade: str = "unknown",
     upgrade_at: str | None = None,
@@ -174,6 +184,8 @@ def add_imei_event(
         status_fus=status_fus,
         status_upgrade=status_upgrade,
         upgrade_at=upgrade_at,
+        aid=aid,
+        cc=cc,
     )
 
 
@@ -230,6 +242,8 @@ def list_by_imei(imei: str, *, limit: int = 200, offset: int = 0) -> Iterable[IM
                 fota_version=row.get("fota_version"),
                 serial_number=row.get("serial_number"),
                 lock_status=row.get("lock_status"),
+                aid=row.get("aid"),
+                cc=row.get("cc"),
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
@@ -293,6 +307,8 @@ def list_by_model_csc(
                 fota_version=row.get("fota_version"),
                 serial_number=row.get("serial_number"),
                 lock_status=row.get("lock_status"),
+                aid=row.get("aid"),
+                cc=row.get("cc"),
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
@@ -358,6 +374,8 @@ def list_between_dates(
                 fota_version=row.get("fota_version"),
                 serial_number=row.get("serial_number"),
                 lock_status=row.get("lock_status"),
+                aid=row.get("aid"),
+                cc=row.get("cc"),
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
@@ -397,6 +415,8 @@ def last_status_by_imei(imei: str) -> IMEIEvent | None:
             fota_version=row.get("fota_version"),
             serial_number=row.get("serial_number"),
             lock_status=row.get("lock_status"),
+            aid=row.get("aid"),
+            cc=row.get("cc"),
             status_fus=row["status_fus"],
             status_upgrade=row["status_upgrade"],
             created_at=row["created_at"],
