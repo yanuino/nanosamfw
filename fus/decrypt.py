@@ -101,6 +101,7 @@ def _decrypt_progress(
     *,
     chunk_size: int = 4096,
     progress_cb: Optional[Callable[[int, int], None]] = None,
+    stop_check: Optional[Callable[[], bool]] = None,
 ) -> None:
     """
     Decrypt the input stream to the output stream with optional progress.
@@ -112,9 +113,11 @@ def _decrypt_progress(
         total: Total input size in bytes (must be a multiple of 16).
         chunk_size: Chunk size to read/decrypt per loop.
         progress_cb: Optional callback(progress_bytes, total_bytes).
+        stop_check: Optional callable that returns True if task should stop.
 
     Raises:
         DecryptError: If total is not a multiple of AES block size (16).
+        RuntimeError: If task was stopped via stop_check.
     """
     if total % 16 != 0:
         raise DecryptError.InvalidBlockSize(total)
@@ -122,6 +125,11 @@ def _decrypt_progress(
     pbar = None if progress_cb else tqdm(total=total, unit="B", unit_scale=True)
     written = 0
     while True:
+        # Check if task should stop
+        if stop_check and stop_check():
+            if pbar:
+                pbar.close()
+            raise RuntimeError("Decryption task stopped by user")
         block = fin.read(chunk_size)
         if not block:
             break
@@ -147,6 +155,7 @@ def decrypt_file(
     *,
     key: bytes,
     progress_cb: Optional[Callable[[int, int], None]] = None,
+    stop_check: Optional[Callable[[], bool]] = None,
 ) -> None:
     """
     Decrypt an encrypted firmware file to disk.
@@ -156,10 +165,14 @@ def decrypt_file(
         out_path: Path to write the decrypted output file.
         key: AES key used for decryption.
         progress_cb: Optional progress callback(progress_bytes, total_bytes).
+        stop_check: Optional callable that returns True if task should stop.
 
     Returns:
         None
+
+    Raises:
+        RuntimeError: If task was stopped via stop_check.
     """
     size = os.stat(enc_path).st_size
     with open(enc_path, "rb") as fin, open(out_path, "wb") as fout:
-        _decrypt_progress(fin, fout, key, size, progress_cb=progress_cb)
+        _decrypt_progress(fin, fout, key, size, progress_cb=progress_cb, stop_check=stop_check)

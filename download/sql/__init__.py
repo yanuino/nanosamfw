@@ -44,7 +44,10 @@ CREATE TABLE IF NOT EXISTS imei_log (
   imei             TEXT NOT NULL,
   model            TEXT NOT NULL,
   csc              TEXT NOT NULL,
-  version_code     TEXT NOT NULL, 
+  version_code     TEXT NOT NULL,  -- Actual device firmware version (PDA/CSC/MODEM/BOOTLOADER)
+  fota_version     TEXT,            -- FOTA/FUS firmware version (AAA/BBB/CCC/DDD format, nullable)
+  serial_number    TEXT,            -- Device serial number (SN from AT)
+  lock_status      TEXT,            -- Device lock status (LOCK from AT)
   status_fus       TEXT NOT NULL DEFAULT 'unknown'
                       CHECK (status_fus IN ('ok','error','denied','unauthorized','throttled','unknown')),
   status_upgrade   TEXT NOT NULL DEFAULT 'unknown'
@@ -52,9 +55,6 @@ CREATE TABLE IF NOT EXISTS imei_log (
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   upgrade_at       TEXT,
-
-  -- 4 parts: AAA/BBB/CCC/DDD
-  CHECK ((length(version_code) - length(replace(version_code, '/', ''))) = 3),
 
   -- Permit multiple CSCs: EUX, EUX/FTM, etc.
   CHECK (length(csc) BETWEEN 3 AND 5),
@@ -78,6 +78,8 @@ ON imei_log (model, csc, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_imei_log__model_csc_version
 ON imei_log (model, csc, version_code);
 
+CREATE INDEX IF NOT EXISTS idx_imei_log__serial_number
+ON imei_log (serial_number);
 
 CREATE INDEX IF NOT EXISTS idx_imei_log__created_at
 ON imei_log (created_at);

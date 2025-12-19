@@ -30,12 +30,16 @@ class ATDeviceInfo:
         firmware_version: Full firmware version string (PDA/CSC/MODEM/BOOTLOADER)
         sales_code: 3-character CSC/region code (e.g., XAA, DBT)
         imei: International Mobile Equipment Identity (15 digits)
+        serial_number: Device serial number (SN field)
+        lock_status: Device lock status (LOCK field)
     """
 
     model: str
     firmware_version: str
     sales_code: str
     imei: str
+    serial_number: str = ""
+    lock_status: str = ""
 
 
 def read_device_info_at(
@@ -148,12 +152,20 @@ def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
             # IMEI field
             imei = info_dict.get("IMEI", "")
 
+            # SN field (serial number)
+            serial_number = info_dict.get("SN", "")
+
+            # LOCK field (lock status)
+            lock_status = info_dict.get("LOCK", "")
+
             if model and firmware_version and sales_code:
                 return ATDeviceInfo(
                     model=model,
                     firmware_version=firmware_version,
                     sales_code=sales_code,
                     imei=imei,
+                    serial_number=serial_number,
+                    lock_status=lock_status,
                 )
 
     raise DeviceReadError(f"Failed to parse AT response from {port_name}. " f"Response: {response[:200]}")

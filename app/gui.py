@@ -63,6 +63,7 @@ class FirmwareDownloaderApp(ctk.CTk):
         # State flags
         self.monitoring = False
         self.download_in_progress = False
+        self.stop_task = False  # Flag to stop active download/decrypt/extract
         self.monitor_thread: Optional[threading.Thread] = None
         self.startup_cleanup_done = False
         # Progress throttling state
@@ -323,6 +324,19 @@ class FirmwareDownloaderApp(ctk.CTk):
             height=40,
         )
         self.progress_message.pack(fill="x", padx=10, pady=(0, 10))
+
+        # Stop button
+        self.stop_button = ctk.CTkButton(
+            progress_frame,
+            text="Stop Task",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#FF453A",
+            hover_color="#E0342F",
+            command=self.stop_current_task,
+            width=100,
+        )
+        self.stop_button.pack(padx=10, pady=(0, 10))
+        self.stop_button.configure(state="disabled")
 
         # Firmware components frame
         components_frame = ctk.CTkFrame(main_frame)
@@ -607,6 +621,23 @@ class FirmwareDownloaderApp(ctk.CTk):
         self.update_status("Monitoring stopped")
         self.update_progress_message("Monitoring stopped", "info")
 
+    def stop_current_task(self):
+        """Stop any active download, decrypt, or extract task.
+
+        Device monitoring remains active. The stop flag is checked in download loops.
+        """
+        if self.download_in_progress:
+            self._log("info", "User requested task stop")
+            self.stop_task = True
+            self.update_status("Stopping task...")
+
+    def _update_stop_button_state(self):
+        """Update stop button enabled/disabled state based on task status."""
+        if self.download_in_progress and not self.stop_task:
+            self.stop_button.configure(state="normal")
+        else:
+            self.stop_button.configure(state="disabled")
+
     def _monitor_devices(self):
         """Background thread monitoring for device connections."""
         device_connected = False
@@ -623,6 +654,8 @@ class FirmwareDownloaderApp(ctk.CTk):
                     device_connected = True
                     last_device_model = device.model
                     self._log("info", f"Device connected: {device.model}/{device.sales_code}")
+                    self._log("info", f"Firmware: {device.firmware_version}")
+                    self._log("info", f"IMEI: {device.imei},SN: {device.serial_number},LOCK: {device.lock_status}")
 
                     # Clear old component paths from previous device
                     self._clear_component_entries()
@@ -657,6 +690,8 @@ class FirmwareDownloaderApp(ctk.CTk):
                             self.update_progress_message(msg, "info")
 
                             self.download_in_progress = True
+                            self.stop_task = False
+                            self.after(0, self._update_stop_button_state)
 
                             def progress_cb(stage: str, done: int, total: int):
                                 self.update_progress(stage, done, total)
@@ -671,6 +706,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                                     version=latest,  # Pass version to avoid duplicate FOTA query
                                     resume=True,
                                     progress_cb=progress_cb,
+                                    stop_check=lambda: self.stop_task,
                                 )
 
                                 msg = f"Cached firmware ready! Version: {firmware.version_code}"
@@ -691,6 +727,8 @@ class FirmwareDownloaderApp(ctk.CTk):
                                             members = zip_ref.namelist()
                                             total_files = len(members)
                                             for idx, member in enumerate(members, 1):
+                                                if self.stop_task:
+                                                    raise RuntimeError("Extraction task stopped by user")
                                                 zip_ref.extract(member, unzip_dir)
                                                 self.update_progress("extract", idx, total_files)
 
@@ -705,6 +743,21 @@ class FirmwareDownloaderApp(ctk.CTk):
                                 self.update_status("Device connected")
                                 self.update_progress_message(msg, "success")
                                 self.download_in_progress = False
+                                self.after(0, self._update_stop_button_state)
+
+                            except RuntimeError as ex:
+                                # Task was stopped by user
+                                if "stopped" in str(ex).lower():
+                                    self._log("info", f"Task stopped: {ex}")
+                                    self.update_status("Device connected")
+                                    self.update_progress_message("Task stopped", "warning")
+                                else:
+                                    self._log("error", f"Runtime error: {ex}")
+                                    self.update_status("Device connected - Error")
+                                    self.update_progress_message("Waiting for device", "info")
+                                self.download_in_progress = False
+                                self.stop_task = False
+                                self.after(0, self._update_stop_button_state)
 
                             except InformError.BadStatus as ex:
                                 status_msg = str(ex)
@@ -724,9 +777,12 @@ class FirmwareDownloaderApp(ctk.CTk):
                                 self.update_status("Device connected")
                                 self.update_progress_message(msg, color)
                                 self.download_in_progress = False
+                                self.after(0, self._update_stop_button_state)
                         else:
                             # Download firmware via FUS
                             self.download_in_progress = True
+                            self.stop_task = False
+                            self.after(0, self._update_stop_button_state)
                             self._log(
                                 "info",
                                 f"Downloading {latest} (current: {device.firmware_version})",
@@ -747,6 +803,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                                     version=latest,  # Pass version to avoid duplicate FOTA query
                                     resume=True,
                                     progress_cb=progress_cb,
+                                    stop_check=lambda: self.stop_task,
                                 )
 
                                 msg = f"Download complete! Version: {firmware.version_code}"
@@ -767,6 +824,8 @@ class FirmwareDownloaderApp(ctk.CTk):
                                             members = zip_ref.namelist()
                                             total_files = len(members)
                                             for idx, member in enumerate(members, 1):
+                                                if self.stop_task:
+                                                    raise RuntimeError("Extraction task stopped by user")
                                                 zip_ref.extract(member, unzip_dir)
                                                 # Update progress: use file count as "bytes"
                                                 self.update_progress("extract", idx, total_files)
@@ -782,6 +841,21 @@ class FirmwareDownloaderApp(ctk.CTk):
                                 self.update_status("Device connected")
                                 self.update_progress_message(msg, "success")
                                 self.download_in_progress = False
+                                self.after(0, self._update_stop_button_state)
+
+                            except RuntimeError as ex:
+                                # Task was stopped by user
+                                if "stopped" in str(ex).lower():
+                                    self._log("info", f"Task stopped: {ex}")
+                                    self.update_status("Device connected")
+                                    self.update_progress_message("Task stopped", "warning")
+                                else:
+                                    self._log("error", f"Runtime error: {ex}")
+                                    self.update_status("Device connected - Error")
+                                    self.update_progress_message("Waiting for device", "info")
+                                self.download_in_progress = False
+                                self.stop_task = False
+                                self.after(0, self._update_stop_button_state)
 
                             except InformError.BadStatus as ex:
                                 # Check status code to determine error type
@@ -802,6 +876,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                                 self.update_status("Device connected")
                                 self.update_progress_message(msg, color)
                                 self.download_in_progress = False
+                                self.after(0, self._update_stop_button_state)
 
                     except FOTAModelOrRegionNotFound:
                         msg = "Model or CSC not recognized by FOTA"
@@ -820,6 +895,7 @@ class FirmwareDownloaderApp(ctk.CTk):
                         self.update_status("Device connected - Firmware operation error")
                         self.update_progress_message("Waiting for device", "info")
                         self.download_in_progress = False
+                        self.after(0, self._update_stop_button_state)
 
                     # Wait for device disconnect after processing
                     self.update_status("Waiting for device disconnect...")

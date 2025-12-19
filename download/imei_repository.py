@@ -40,7 +40,10 @@ class IMEIEvent:
         imei: Device IMEI number.
         model: Device model identifier.
         csc: Country Specific Code.
-        version_code: Firmware version identifier (format: AAA/BBB/CCC/DDD).
+        version_code: Actual device firmware version (PDA/CSC/MODEM/BOOTLOADER format from AT).
+        fota_version: FOTA/FUS firmware version (AAA/BBB/CCC/DDD format), or None.
+        serial_number: Device serial number (SN from AT), or None.
+        lock_status: Device lock status (LOCK from AT), or None.
         status_fus: FUS query status (ok, error, denied, unauthorized, throttled, unknown).
         status_upgrade: Upgrade operation status (queued, in_progress, ok, failed, skipped, unknown).
         created_at: ISO 8601 UTC timestamp of event creation, or None.
@@ -54,6 +57,9 @@ class IMEIEvent:
     model: str
     csc: str
     version_code: str
+    fota_version: str | None = None
+    serial_number: str | None = None
+    lock_status: str | None = None
     status_fus: str = "unknown"  # ok/error/denied/unauthorized/throttled/unknown
     status_upgrade: str = "unknown"  # queued/in_progress/ok/failed/skipped/unknown
     created_at: str | None = None  # ISO-8601 UTC
@@ -68,6 +74,9 @@ def upsert_imei_event(
     model: str,
     csc: str,
     version_code: str,
+    fota_version: str | None = None,
+    serial_number: str | None = None,
+    lock_status: str | None = None,
     status_fus: str = "unknown",
     status_upgrade: str = "unknown",
     upgrade_at: str | None = None,
@@ -83,7 +92,10 @@ def upsert_imei_event(
         imei: Device IMEI number.
         model: Device model identifier.
         csc: Country Specific Code.
-        version_code: Firmware version identifier (format: AAA/BBB/CCC/DDD).
+        version_code: Actual device firmware version (PDA/CSC/MODEM/BOOTLOADER format).
+        fota_version: Optional FOTA/FUS firmware version (AAA/BBB/CCC/DDD format).
+        serial_number: Optional device serial number (SN from AT).
+        lock_status: Optional device lock status (LOCK from AT).
         status_fus: FUS query status. Defaults to "unknown".
         status_upgrade: Upgrade operation status. Defaults to "unknown".
         upgrade_at: Optional ISO 8601 UTC timestamp of upgrade operation.
@@ -93,13 +105,18 @@ def upsert_imei_event(
     """
     sql = """
     INSERT INTO imei_log
-        (session_id, imei, model, csc, version_code, status_fus, status_upgrade, created_at, updated_at, upgrade_at)
+        (session_id, imei, model, csc, version_code, fota_version, serial_number, lock_status,
+         status_fus, status_upgrade, created_at, updated_at, upgrade_at)
     VALUES
-        (:session_id, :imei, :model, :csc, :version_code, :status_fus, :status_upgrade, :created_at, :updated_at, :upgrade_at)
+        (:session_id, :imei, :model, :csc, :version_code, :fota_version, :serial_number, :lock_status,
+         :status_fus, :status_upgrade, :created_at, :updated_at, :upgrade_at)
     ON CONFLICT(session_id, imei) DO UPDATE SET
         model=excluded.model,
         csc=excluded.csc,
         version_code=excluded.version_code,
+        fota_version=excluded.fota_version,
+        serial_number=excluded.serial_number,
+        lock_status=excluded.lock_status,
         status_fus=excluded.status_fus,
         status_upgrade=excluded.status_upgrade,
         updated_at=excluded.updated_at,
@@ -112,6 +129,9 @@ def upsert_imei_event(
         "model": model,
         "csc": csc,
         "version_code": version_code,
+        "fota_version": fota_version,
+        "serial_number": serial_number,
+        "lock_status": lock_status,
         "status_fus": status_fus,
         "status_upgrade": status_upgrade,
         "created_at": now,
@@ -130,6 +150,9 @@ def add_imei_event(
     model: str,
     csc: str,
     version_code: str,
+    fota_version: str | None = None,
+    serial_number: str | None = None,
+    lock_status: str | None = None,
     status_fus: str = "unknown",
     status_upgrade: str = "unknown",
     upgrade_at: str | None = None,
@@ -145,6 +168,9 @@ def add_imei_event(
         model=model,
         csc=csc,
         version_code=version_code,
+        fota_version=fota_version,
+        serial_number=serial_number,
+        lock_status=lock_status,
         status_fus=status_fus,
         status_upgrade=status_upgrade,
         upgrade_at=upgrade_at,
@@ -201,6 +227,9 @@ def list_by_imei(imei: str, *, limit: int = 200, offset: int = 0) -> Iterable[IM
                 model=row["model"],
                 csc=row["csc"],
                 version_code=row["version_code"],
+                fota_version=row.get("fota_version"),
+                serial_number=row.get("serial_number"),
+                lock_status=row.get("lock_status"),
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
@@ -261,6 +290,9 @@ def list_by_model_csc(
                 model=row["model"],
                 csc=row["csc"],
                 version_code=row["version_code"],
+                fota_version=row.get("fota_version"),
+                serial_number=row.get("serial_number"),
+                lock_status=row.get("lock_status"),
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
@@ -323,6 +355,9 @@ def list_between_dates(
                 model=row["model"],
                 csc=row["csc"],
                 version_code=row["version_code"],
+                fota_version=row.get("fota_version"),
+                serial_number=row.get("serial_number"),
+                lock_status=row.get("lock_status"),
                 status_fus=row["status_fus"],
                 status_upgrade=row["status_upgrade"],
                 created_at=row["created_at"],
@@ -359,6 +394,9 @@ def last_status_by_imei(imei: str) -> IMEIEvent | None:
             model=row["model"],
             csc=row["csc"],
             version_code=row["version_code"],
+            fota_version=row.get("fota_version"),
+            serial_number=row.get("serial_number"),
+            lock_status=row.get("lock_status"),
             status_fus=row["status_fus"],
             status_upgrade=row["status_upgrade"],
             created_at=row["created_at"],

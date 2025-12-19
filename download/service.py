@@ -107,6 +107,7 @@ def get_or_download_firmware(
     *,
     resume: bool = True,
     progress_cb: Optional[Callable[[int, int], None]] = None,
+    stop_check: Optional[Callable[[], bool]] = None,
 ) -> FirmwareRecord:
     """Get firmware from repository or download if not present.
 
@@ -120,6 +121,7 @@ def get_or_download_firmware(
         device_id: Device IMEI or serial number.
         resume: If True, resume from partial download if .part file exists.
         progress_cb: Optional callback function(bytes_downloaded, total_bytes).
+        stop_check: Optional callable that returns True if task should stop.
 
     Returns:
         FirmwareRecord: Repository record with encrypted file path and metadata.
@@ -127,6 +129,7 @@ def get_or_download_firmware(
     Raises:
         InformError: If FUS inform request fails.
         DownloadError: If download fails or size verification fails.
+        RuntimeError: If task was stopped via stop_check.
 
     Example:
         firmware = get_or_download_firmware(
@@ -168,6 +171,9 @@ def get_or_download_firmware(
     written = start
     with open(part_path, mode) as f:
         for chunk in resp.iter_content(chunk_size=1024 * 1024):
+            # Check if task should stop
+            if stop_check and stop_check():
+                raise RuntimeError("Download task stopped by user")
             if not chunk:
                 continue
             f.write(chunk)
@@ -202,6 +208,7 @@ def decrypt_firmware(
     output_path: Optional[str] = None,
     *,
     progress_cb: Optional[Callable[[int, int], None]] = None,
+    stop_check: Optional[Callable[[], bool]] = None,
 ) -> str:
     """Decrypt firmware from repository.
 
@@ -213,6 +220,7 @@ def decrypt_firmware(
         output_path: Optional custom output path. If None, uses
             PATHS.decrypted_dir/<filename_without_enc4>.
         progress_cb: Optional callback function(bytes_processed, total_bytes).
+        stop_check: Optional callable that returns True if task should stop.
 
     Returns:
         Absolute path to the decrypted file.
@@ -221,6 +229,7 @@ def decrypt_firmware(
         ValueError: If firmware not found in repository.
         FileNotFoundError: If encrypted file doesn't exist on disk.
         DecryptError: If decryption fails.
+        RuntimeError: If task was stopped via stop_check.
 
     Example:
         decrypted = decrypt_firmware("A146PXXS6CXK3/...")
@@ -234,6 +243,10 @@ def decrypt_firmware(
     enc_path = Path(firmware.encrypted_file_path)
     if not enc_path.exists():
         raise FileNotFoundError(f"Encrypted file not found: {enc_path}")
+
+    # Check if task should stop before starting
+    if stop_check and stop_check():
+        raise RuntimeError("Decryption task stopped by user")
 
     # Determine output path
     if output_path:
@@ -249,6 +262,7 @@ def decrypt_firmware(
         str(dec_path),
         key=key,
         progress_cb=progress_cb,
+        stop_check=stop_check,
     )
 
     # Update repository with decrypted path
@@ -267,6 +281,7 @@ def download_and_decrypt(
     output_path: Optional[str] = None,
     resume: bool = True,
     progress_cb: Optional[Callable[[str, int, int], None]] = None,
+    stop_check: Optional[Callable[[], bool]] = None,
 ) -> tuple[FirmwareRecord, str]:
     """Complete workflow: check FOTA, download, and decrypt firmware.
 
@@ -289,15 +304,23 @@ def download_and_decrypt(
         output_path: Optional explicit decrypted output path.
         resume: Resume partial downloads when True.
         progress_cb: Unified callback for both stages.
+        stop_check: Optional callable that returns True if task should stop.
 
     Returns:
         (FirmwareRecord, decrypted_file_path)
+
+    Raises:
+        RuntimeError: If task was stopped via stop_check.
     """
     # 1. Resolve version and check cache
     if not version:
         version, _is_cached = check_and_prepare_firmware(model, csc, device_id, current_firmware)
     else:
         version = normalize_vercode(version)
+
+    # Check if task should stop before starting
+    if stop_check and stop_check():
+        raise RuntimeError("Download task stopped by user")
 
     # 2. Download to repository
     def _dl_cb(done: int, total: int):
@@ -306,7 +329,13 @@ def download_and_decrypt(
 
     try:
         firmware = get_or_download_firmware(
-            version, model, csc, device_id, resume=resume, progress_cb=_dl_cb if progress_cb else None
+            version,
+            model,
+            csc,
+            device_id,
+            resume=resume,
+            progress_cb=_dl_cb if progress_cb else None,
+            stop_check=stop_check,
         )
     except FUSError:
         # Update imei_log with error status before re-raising
@@ -343,6 +372,7 @@ def download_and_decrypt(
         version,
         output_path,
         progress_cb=_dec_cb if progress_cb else None,
+        stop_check=stop_check,
     )
 
     return firmware, decrypted_path
