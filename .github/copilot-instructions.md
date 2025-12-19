@@ -270,12 +270,13 @@ mkdocs gh-deploy
 4. Update docstrings with Args/Returns/Raises
 
 ### Adding Database Tables
-1. Add SQL to `download/sql/*.sql` with schema + indexes
-2. Update imports in `download/sql/__init__.py` to export new schema
-3. Update `download/db.py` to include schema in `init_db()`
-4. Create dataclass in appropriate repository file
-5. Add repository functions (find, list, upsert pattern)
-6. Update `docs/database/schema.md` with table documentation
+1. Add SQL schema string to `download/sql/__init__.py` (e.g., `NEW_TABLE_SCHEMA = """..."""`)
+2. Append new schema to `SCHEMA_SQL` concatenation in `download/db.py`
+3. Create dataclass in appropriate repository file
+4. Add repository functions (find, list, upsert pattern)
+5. Update `docs/database/schema.md` with table documentation
+
+Note: SQL schemas are embedded as Python strings in `download/sql/__init__.py`, not as separate .sql files.
 
 ### Adding Device Detection Features
 1. All device code goes in `device/` package
