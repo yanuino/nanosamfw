@@ -305,14 +305,34 @@ class FirmwareDownloaderApp(ctk.CTk):
             anchor="w", padx=10, pady=(10, 5)
         )
 
-        # Unified progress bar (download + decrypt)
-        self.download_progress_bar = ctk.CTkProgressBar(progress_frame)
-        self.download_progress_bar.pack(fill="x", padx=10, pady=(0, 2))
+        # Container for progress bar and stop button (side by side)
+        self.progress_bar_container = ctk.CTkFrame(progress_frame, fg_color="transparent")
+        self.progress_bar_container.pack(fill="x", padx=10, pady=(0, 10))
+        self.progress_bar_container.pack_forget()  # Hidden by default
+
+        # Progress bar frame (left side, expandable)
+        progress_bar_frame = ctk.CTkFrame(self.progress_bar_container, fg_color="transparent")
+        progress_bar_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
+
+        self.download_progress_bar = ctk.CTkProgressBar(progress_bar_frame)
+        self.download_progress_bar.pack(fill="x", pady=(0, 2))
         self.download_progress_bar.set(0)
-        self.download_progress_bar.pack_forget()
-        self.download_progress_label = ctk.CTkLabel(progress_frame, text="", font=ctk.CTkFont(size=11))
-        self.download_progress_label.pack(anchor="w", padx=10, pady=(0, 8))
-        self.download_progress_label.pack_forget()
+
+        self.download_progress_label = ctk.CTkLabel(progress_bar_frame, text="", font=ctk.CTkFont(size=11))
+        self.download_progress_label.pack(anchor="w")
+
+        # Stop button (right side, fixed width)
+        self.stop_button = ctk.CTkButton(
+            self.progress_bar_container,
+            text="Stop Task",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#FF453A",
+            hover_color="#E0342F",
+            command=self.stop_current_task,
+            width=100,
+            bg_color="transparent",
+        )
+        self.stop_button.pack(side="right")
 
         # Message label for highlighted text (shown when not downloading)
         self.progress_message = ctk.CTkLabel(
@@ -324,19 +344,6 @@ class FirmwareDownloaderApp(ctk.CTk):
             height=40,
         )
         self.progress_message.pack(fill="x", padx=10, pady=(0, 10))
-
-        # Stop button
-        self.stop_button = ctk.CTkButton(
-            progress_frame,
-            text="Stop Task",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color="#FF453A",
-            hover_color="#E0342F",
-            command=self.stop_current_task,
-            width=100,
-        )
-        self.stop_button.pack(padx=10, pady=(0, 10))
-        self.stop_button.configure(state="disabled")
 
         # Firmware components frame
         components_frame = ctk.CTkFrame(main_frame)
@@ -574,9 +581,8 @@ class FirmwareDownloaderApp(ctk.CTk):
 
         def _update():
             self.progress_message.pack_forget()
-            if not self.download_progress_bar.winfo_ismapped():
-                self.download_progress_bar.pack(fill="x", padx=10, pady=(0, 2))
-                self.download_progress_label.pack(anchor="w", padx=10, pady=(0, 8))
+            if not self.progress_bar_container.winfo_ismapped():
+                self.progress_bar_container.pack(fill="x", padx=10, pady=(0, 10))
             self.download_progress_bar.set(pct)
             self.download_progress_label.configure(text=label)
 
@@ -598,8 +604,7 @@ class FirmwareDownloaderApp(ctk.CTk):
         fg_color = colors.get(color, colors["info"])
 
         def _update():
-            self.download_progress_bar.pack_forget()
-            self.download_progress_label.pack_forget()
+            self.progress_bar_container.pack_forget()
             self.progress_message.pack(fill="x", padx=10, pady=(0, 10))
             self.progress_message.configure(text=message, fg_color=fg_color)
 
