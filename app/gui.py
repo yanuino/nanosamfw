@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import tomllib
 import zipfile
 from importlib.resources import files
 from pathlib import Path
@@ -49,12 +50,16 @@ class FirmwareDownloaderApp(ctk.CTk):
         # Setup logging
         self._setup_logging()
 
+        # Load configuration
+        self._load_config()
+
         # Window configuration
         self.title("Samsung Firmware Downloader")
         # Set application/window icon from AppIcons
         self._set_app_icon()
-        self.geometry("1024x768")
-        self.minsize(1024, 768)
+        # Fixed width, auto-size height to content
+        self.geometry("1024x")
+        self.minsize(1024, 0)
 
         # Set appearance
         ctk.set_appearance_mode("dark")
@@ -235,6 +240,35 @@ class FirmwareDownloaderApp(ctk.CTk):
         log_func = getattr(self.logger, level, self.logger.info)
         log_func(message)
 
+    def _load_config(self):
+        """Load configuration from config.toml file."""
+        config_path = Path(__file__).parent / "config.toml"
+        try:
+            with open(config_path, "rb") as f:
+                config = tomllib.load(f)
+
+            # GUI settings
+            gui_config = config.get("gui", {})
+            self.config_btn_dryrun = gui_config.get("btn_dryrun", False)
+            self.config_btn_autofus = gui_config.get("btn_autofus", True)
+
+            # Device settings
+            device_config = config.get("devices", {})
+            self.config_auto_fusmode = device_config.get("auto_fusmode", True)
+            self.config_csc_filter = device_config.get("csc_filter", "").strip()
+
+            self._log(
+                "info",
+                f"Config loaded: dryrun={self.config_btn_dryrun}, autofus={self.config_btn_autofus}, auto_fusmode={self.config_auto_fusmode}, csc_filter={self.config_csc_filter}",
+            )
+        except (FileNotFoundError, OSError) as ex:
+            # Use defaults if config file not found
+            self.config_btn_dryrun = False
+            self.config_btn_autofus = True
+            self.config_auto_fusmode = True
+            self.config_csc_filter = ""
+            self._log("warning", f"Config file not found or error reading: {ex}. Using defaults.")
+
     def _create_widgets(self):
         """Create and layout all UI widgets."""
         # pylint: disable=W0201  # Allow setting instance attributes outside __init__ for Tkinter widgets
@@ -399,6 +433,54 @@ class FirmwareDownloaderApp(ctk.CTk):
         self.cp_entry = _make_comp_row(2, "CP")
         self.csc_entry = _make_comp_row(3, "CSC")
         self.home_entry = _make_comp_row(4, "HOME", hidden=True)
+
+        # Settings frame at bottom (horizontal layout)
+        settings_frame = ctk.CTkFrame(main_frame)
+        settings_frame.pack(fill="x", pady=10)
+
+        # Horizontal container for all settings widgets
+        settings_container = ctk.CTkFrame(settings_frame, fg_color="transparent")
+        settings_container.pack(fill="x", padx=10, pady=10)
+
+        # Dry run checkbox - always visible
+        self.dryrun_checkbox = ctk.CTkCheckBox(
+            settings_container,
+            text="Dry run",
+            font=ctk.CTkFont(size=12),
+        )
+        # If config false: grayed/disabled and unchecked
+        # If config true: enabled and unchecked (user can check it)
+        if not self.config_btn_dryrun:
+            self.dryrun_checkbox.configure(state="disabled")
+        self.dryrun_checkbox.pack(side="left", padx=(0, 20))
+
+        # Auto FUS Mode checkbox - always visible
+        self.autofus_checkbox = ctk.CTkCheckBox(
+            settings_container,
+            text="Auto FUS Mode",
+            font=ctk.CTkFont(size=12),
+        )
+        # If auto_fusmode=true in [devices]: grayed and checked
+        # If config_btn_autofus=false: grayed and unchecked
+        # If config_btn_autofus=true: enabled and unchecked
+        if self.config_auto_fusmode:
+            self.autofus_checkbox.select()
+            self.autofus_checkbox.configure(state="disabled")
+        elif not self.config_btn_autofus:
+            self.autofus_checkbox.configure(state="disabled")
+        self.autofus_checkbox.pack(side="left", padx=(0, 20))
+
+        # CSC Filter label
+        if self.config_csc_filter:
+            csc_label_text = f"CSC Filter: {self.config_csc_filter}"
+        else:
+            csc_label_text = "CSC Filter: (none)"
+        self.csc_filter_label = ctk.CTkLabel(
+            settings_container,
+            text=csc_label_text,
+            font=ctk.CTkFont(size=12),
+        )
+        self.csc_filter_label.pack(side="left", padx=(0, 20))
 
     def update_status(self, message: str):
         """Update status label with thread-safe scheduling.

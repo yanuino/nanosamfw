@@ -52,6 +52,13 @@ The codebase is organized into three main packages:
    - Database uses explicit transaction management (WAL mode, autocommit)
    - Files organized as `data/firmware/filename.enc4` and `data/decrypted/filename`
 
+4. **GUI Application** (`app/`) - Graphical user interface
+   - Built with customtkinter for modern dark-mode UI
+   - Automatic device detection and firmware download workflow
+   - Configuration via TOML file (`app/config.toml`)
+   - Real-time progress tracking with stop functionality
+   - Automatic repository cleanup on startup
+
 ### Critical FUS Protocol Flow
 ```python
 # 1. Client bootstrap (auto in __init__)
@@ -128,6 +135,38 @@ from download import check_firmware, download_and_decrypt
 latest = check_firmware(info.model, info.sales, "")  # Empty IMEI in download mode
 if latest != info.fwver:
     firmware, decrypted = download_and_decrypt(info.model, info.sales, "")
+```
+
+### GUI Configuration (`app/config.toml`)
+The GUI application uses a TOML configuration file for behavioral settings:
+
+**File Location**: `app/config.toml`
+
+**Configuration Sections**:
+- `[gui]` section - UI element toggles:
+  - `btn_dryrun` (bool): Show/hide "Dry run" checkbox in GUI
+  - `btn_autofus` (bool): Show/hide "Auto FUS Mode" checkbox in GUI
+  
+- `[devices]` section - Device behavior:
+  - `auto_fusmode` (bool): Automatically enter device into FUS mode when needed
+  - `csc_filter` (string): Comma-separated list of CSC codes to filter devices (empty = no filtering)
+
+**Usage Pattern**:
+- Load config at GUI startup using `toml` library
+- Use config values to control UI element visibility and device handling
+- Config changes require app restart to take effect
+- Missing config file or keys should use sensible defaults
+
+**Example**:
+```python
+import tomli  # or tomllib in Python 3.11+
+
+with open("app/config.toml", "rb") as f:
+    config = tomli.load(f)
+    
+show_dryrun = config.get("gui", {}).get("btn_dryrun", False)
+auto_fusmode = config.get("devices", {}).get("auto_fusmode", True)
+csc_filter = config.get("devices", {}).get("csc_filter", "").strip()
 ```
 
 ### Key Integration Points
