@@ -40,6 +40,8 @@ class IMEIEvent:
         imei: Device IMEI number.
         model: Device model identifier.
         csc: Country Specific Code.
+        aid: Application ID, or None.
+        cc: Country Code, or None.
         version_code: Actual device firmware version (PDA/CSC/MODEM/BOOTLOADER format from AT).
         fota_version: FOTA/FUS firmware version (AAA/BBB/CCC/DDD format), or None.
         serial_number: Device serial number (SN from AT), or None.
@@ -96,6 +98,8 @@ def upsert_imei_event(
         imei: Device IMEI number.
         model: Device model identifier.
         csc: Country Specific Code.
+        aid: Optional Application ID.
+        cc: Optional Country Code.
         version_code: Actual device firmware version (PDA/CSC/MODEM/BOOTLOADER format).
         fota_version: Optional FOTA/FUS firmware version (AAA/BBB/CCC/DDD format).
         serial_number: Optional device serial number (SN from AT).
@@ -269,6 +273,8 @@ def list_by_model_csc(
     Args:
         model: Device model identifier.
         csc: Country Specific Code.
+        aid: Optional Application ID filter.
+        cc: Optional Country Code filter.
         since: Optional ISO 8601 UTC timestamp for minimum created_at filter.
         until: Optional ISO 8601 UTC timestamp for maximum created_at filter.
         limit: Maximum number of records to return. Defaults to 200.

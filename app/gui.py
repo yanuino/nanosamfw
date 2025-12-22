@@ -316,21 +316,38 @@ class FirmwareDownloaderApp(ctk.CTk):
         entries_frame = ctk.CTkFrame(device_frame)
         entries_frame.pack(fill="x", padx=10, pady=(0, 10))
 
-        def _make_row(row: int, label: str) -> ctk.CTkEntry:
+        def _make_full_row(row: int, label: str) -> ctk.CTkEntry:
             ctk.CTkLabel(entries_frame, text=label, font=ctk.CTkFont(size=12, weight="bold")).grid(
                 row=row, column=0, sticky="w", pady=4
             )
             entry = ctk.CTkEntry(entries_frame, font=ctk.CTkFont(size=12))
-            entry.grid(row=row, column=1, sticky="ew", padx=(10, 0), pady=4)
-            entries_frame.grid_columnconfigure(1, weight=1)
+            entry.grid(row=row, column=1, columnspan=5, sticky="ew", padx=(10, 0), pady=4)
             # Make read-only
             entry.configure(state="disabled")
             return entry
 
-        self.model_entry = _make_row(0, "Model")
-        self.firmware_entry = _make_row(1, "Firmware")
-        self.region_entry = _make_row(2, "Region/CSC")
-        self.imei_entry = _make_row(3, "IMEI")
+        def _make_col(row: int, col: int, label: str) -> ctk.CTkEntry:
+            ctk.CTkLabel(entries_frame, text=label, font=ctk.CTkFont(size=12, weight="bold")).grid(
+                row=row, column=col * 2, sticky="w", pady=4, padx=(10, 0) if col > 0 else 0
+            )
+            entry = ctk.CTkEntry(entries_frame, font=ctk.CTkFont(size=12))
+            entry.grid(row=row, column=col * 2 + 1, sticky="ew", padx=(5, 0), pady=4)
+            # Make read-only
+            entry.configure(state="disabled")
+            return entry
+
+        # Configure columns for equal width: 0(label), 1-2(entry1), 3-4(entry2), 5-6(entry3)
+        entries_frame.grid_columnconfigure(1, weight=1)
+        entries_frame.grid_columnconfigure(3, weight=1)
+        entries_frame.grid_columnconfigure(5, weight=1)
+
+        self.model_entry = _make_full_row(0, "Model")
+        self.firmware_entry = _make_full_row(1, "Firmware")
+        # Row 2: Region/CSC, AID, CC on same line
+        self.region_entry = _make_col(2, 0, "Region/CSC")
+        self.aid_entry = _make_col(2, 1, "AID")
+        self.cc_entry = _make_col(2, 2, "CC")
+        self.imei_entry = _make_full_row(3, "IMEI")
 
         # Placeholders
         self._set_device_placeholders()
@@ -506,9 +523,13 @@ class FirmwareDownloaderApp(ctk.CTk):
         _set(self.model_entry, "-")
         _set(self.firmware_entry, "-")
         _set(self.region_entry, "-")
+        _set(self.aid_entry, "-")
+        _set(self.cc_entry, "-")
         _set(self.imei_entry, "-")
 
-    def update_device_fields(self, model: str, firmware: str, region: str, imei: str) -> None:
+    def update_device_fields(
+        self, model: str, firmware: str, region: str, imei: str, aid: str = "-", cc: str = "-"
+    ) -> None:
         """Update individual device info entries (read-only display).
 
         Args:
@@ -516,6 +537,8 @@ class FirmwareDownloaderApp(ctk.CTk):
             firmware: Firmware version.
             region: Region/CSC code.
             imei: IMEI string.
+            aid: Application ID.
+            cc: Country Code.
         """
 
         def _set(e: ctk.CTkEntry, text: str):
@@ -528,6 +551,8 @@ class FirmwareDownloaderApp(ctk.CTk):
             _set(self.model_entry, model or "-")
             _set(self.firmware_entry, firmware or "-")
             _set(self.region_entry, region or "-")
+            _set(self.aid_entry, aid or "-")
+            _set(self.cc_entry, cc or "-")
             _set(self.imei_entry, imei or "-")
 
         self.after(0, _update)
@@ -758,6 +783,8 @@ class FirmwareDownloaderApp(ctk.CTk):
                         device.firmware_version,
                         device.sales_code,
                         device.imei,
+                        aid=device.aid or "-",
+                        cc=device.cc or "-",
                     )
                     self.update_status("Device detected! Checking firmware...")
 
