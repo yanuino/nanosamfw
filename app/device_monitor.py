@@ -33,6 +33,7 @@ class DeviceMonitor:
         ui_updater: UIUpdater instance for thread-safe UI updates.
         progress_callback: Callback for progress updates.
         stop_check: Function that returns True if task should stop.
+        disconnect_callback: Optional callback invoked when device disconnects.
         csc_filter: Set of allowed CSC codes (empty = accept all).
         unzip_home_csc: Whether to extract HOME_CSC files during extraction.
         logger: Logger instance.
@@ -43,6 +44,7 @@ class DeviceMonitor:
         ui_updater,
         progress_callback: Callable[[str, int, int], None],
         stop_check: Callable[[], bool],
+        disconnect_callback: Callable[[], None] | None = None,
         csc_filter: list[str] | None = None,
         unzip_home_csc: bool = True,
     ):
@@ -52,6 +54,7 @@ class DeviceMonitor:
             ui_updater: UIUpdater instance for UI updates.
             progress_callback: Function(stage, done, total) for progress updates.
             stop_check: Function returning True if task should be stopped.
+            disconnect_callback: Optional callback invoked when device disconnects.
             csc_filter: Optional list of allowed CSC codes (case-insensitive).
                 Empty list = accept all devices. Non-empty = only accept listed CSCs.
             unzip_home_csc: Whether to extract HOME_CSC files when unzipping firmware.
@@ -59,6 +62,7 @@ class DeviceMonitor:
         self.ui_updater = ui_updater
         self.progress_callback = progress_callback
         self.stop_check = stop_check
+        self.disconnect_callback = disconnect_callback
         self.csc_filter: set[str] = {c.strip().upper() for c in csc_filter} if csc_filter else set()
         self.unzip_home_csc = unzip_home_csc
         self.logger = logging.getLogger(__name__)
@@ -144,6 +148,10 @@ class DeviceMonitor:
                     self.ui_updater.set_device_placeholders()
                     # Keep component paths visible until new device connects
                     self.ui_updater.update_progress_message("Waiting for device", "info")
+
+                    # Reset stop flag for next device
+                    if self.disconnect_callback:
+                        self.disconnect_callback()
 
                 # Wait before checking again
                 time.sleep(1)

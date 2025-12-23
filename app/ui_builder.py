@@ -48,15 +48,15 @@ class UIBuilder:
 
         # Main container with padding
         main_frame = ctk.CTkFrame(self.root)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        main_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
         # Title
-        title_label = ctk.CTkLabel(
-            main_frame,
-            text="Samsung Firmware Downloader",
-            font=ctk.CTkFont(size=24, weight="bold"),
-        )
-        title_label.pack(pady=(0, 20))
+        # title_label = ctk.CTkLabel(
+        #     main_frame,
+        #     text="Samsung Firmware Downloader",
+        #     font=ctk.CTkFont(size=24, weight="bold"),
+        # )
+        # title_label.pack(pady=(0, 20))
 
         # Create all sub-frames
         self._create_status_frame(main_frame, widgets)
@@ -75,7 +75,7 @@ class UIBuilder:
             widgets: Widget dictionary to populate.
         """
         status_frame = ctk.CTkFrame(parent)
-        status_frame.pack(fill="x", pady=10)
+        status_frame.pack(fill="x", padx=5, pady=5)
 
         ctk.CTkLabel(status_frame, text="Status:", font=ctk.CTkFont(size=14, weight="bold")).pack(
             anchor="w", padx=10, pady=(10, 5)
@@ -97,7 +97,7 @@ class UIBuilder:
             widgets: Widget dictionary to populate.
         """
         device_frame = ctk.CTkFrame(parent)
-        device_frame.pack(fill="x", pady=10)
+        device_frame.pack(fill="x", padx=5, pady=(0, 5))
 
         ctk.CTkLabel(device_frame, text="Device Information:", font=ctk.CTkFont(size=14, weight="bold")).pack(
             anchor="w", padx=10, pady=(10, 5)
@@ -109,19 +109,19 @@ class UIBuilder:
 
         def _make_full_row(row: int, label: str) -> ctk.CTkEntry:
             ctk.CTkLabel(entries_frame, text=label, font=ctk.CTkFont(size=12, weight="bold")).grid(
-                row=row, column=0, sticky="w", pady=4
+                row=row, column=0, sticky="w", padx=4, pady=4
             )
             entry = ctk.CTkEntry(entries_frame, font=ctk.CTkFont(size=12))
-            entry.grid(row=row, column=1, columnspan=5, sticky="ew", padx=(10, 0), pady=4)
+            entry.grid(row=row, column=1, columnspan=5, sticky="ew", padx=(10, 4), pady=4)
             entry.configure(state="disabled")
             return entry
 
         def _make_col(row: int, col: int, label: str) -> ctk.CTkEntry:
             ctk.CTkLabel(entries_frame, text=label, font=ctk.CTkFont(size=12, weight="bold")).grid(
-                row=row, column=col * 2, sticky="w", pady=4, padx=(10, 0) if col > 0 else 0
+                row=row, column=col * 2, sticky="w", pady=4, padx=(10, 0) if col > 0 else 4
             )
             entry = ctk.CTkEntry(entries_frame, font=ctk.CTkFont(size=12))
-            entry.grid(row=row, column=col * 2 + 1, sticky="ew", padx=(5, 0), pady=4)
+            entry.grid(row=row, column=col * 2 + 1, sticky="ew", padx=(10, 4), pady=4)
             entry.configure(state="disabled")
             return entry
 
@@ -146,7 +146,7 @@ class UIBuilder:
             stop_callback: Callback for stop button.
         """
         progress_frame = ctk.CTkFrame(parent)
-        progress_frame.pack(fill="x", pady=10)
+        progress_frame.pack(fill="x", padx=5, pady=(0, 5))
 
         ctk.CTkLabel(progress_frame, text="Progress:", font=ctk.CTkFont(size=14, weight="bold")).pack(
             anchor="w", padx=10, pady=(10, 5)
@@ -205,7 +205,7 @@ class UIBuilder:
             widgets: Widget dictionary to populate.
         """
         components_frame = ctk.CTkFrame(parent)
-        components_frame.pack(fill="x", pady=10)
+        components_frame.pack(fill="x", padx=5, pady=(0, 5))
 
         ctk.CTkLabel(components_frame, text="Firmware Components:", font=ctk.CTkFont(size=14, weight="bold")).pack(
             anchor="w", padx=10, pady=(10, 5)
@@ -222,9 +222,9 @@ class UIBuilder:
                 font=ctk.CTkFont(size=12, weight="bold"),
                 cursor="hand2" if not hidden else "",
             )
-            label_widget.grid(row=row, column=0, sticky="w", pady=4)
+            label_widget.grid(row=row, column=0, sticky="w", padx=4, pady=4)
             entry = ctk.CTkEntry(comp_entries_frame, font=ctk.CTkFont(size=11))
-            entry.grid(row=row, column=1, sticky="ew", padx=(10, 0), pady=4)
+            entry.grid(row=row, column=1, sticky="ew", padx=(10, 4), pady=4)
             comp_entries_frame.grid_columnconfigure(1, weight=1)
             entry.configure(state="disabled")
             original_fg = entry.cget("fg_color")
@@ -266,7 +266,7 @@ class UIBuilder:
             widgets: Widget dictionary to populate.
         """
         settings_frame = ctk.CTkFrame(parent)
-        settings_frame.pack(fill="x", pady=10)
+        settings_frame.pack(fill="x", padx=5, pady=(0, 5))
 
         # Horizontal container
         settings_container = ctk.CTkFrame(settings_frame, fg_color="transparent")

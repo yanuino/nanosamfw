@@ -64,7 +64,7 @@ class FirmwareDownloaderApp(ctk.CTk):
         self.minsize(1024, 0)
 
         # Set appearance
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
 
         # State flags
@@ -230,11 +230,16 @@ class FirmwareDownloaderApp(ctk.CTk):
         def stop_check() -> bool:
             return self.stop_task
 
+        def disconnect_callback() -> None:
+            # Reset stop flag when device disconnects
+            self.stop_task = False
+
         csc_filter_list = self._parse_csc_filter()
         self.device_monitor = DeviceMonitor(
             self.ui_updater,
             progress_callback,
             stop_check,
+            disconnect_callback=disconnect_callback,
             csc_filter=csc_filter_list,
             unzip_home_csc=self.config.unzip_home_csc,
         )
