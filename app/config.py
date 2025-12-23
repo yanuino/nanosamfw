@@ -8,6 +8,7 @@ the config.toml file.
 """
 
 import logging
+import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,27 +43,33 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         AppConfig instance with loaded or default settings.
     """
     if config_path is None:
-        config_path = Path(__file__).parent / "config.toml"
+        # Resolve config path: when frozen (PyInstaller), load from .exe directory
+        if getattr(sys, "frozen", False) and hasattr(sys, "executable"):
+            base_dir = Path(sys.executable).parent
+        else:
+            base_dir = Path(__file__).parent
+        config_path = base_dir / "config.toml"
 
     logger = logging.getLogger(__name__)
 
     try:
         with open(config_path, "rb") as f:
             config = tomllib.load(f)
+        logger.info("Loaded config from %s", config_path)
 
         # GUI settings
         gui_config = config.get("gui", {})
         btn_dryrun = gui_config.get("btn_dryrun", False)
-        btn_autofus = gui_config.get("btn_autofus", True)
+        btn_autofus = gui_config.get("btn_autofus", False)
 
         # Device settings
         device_config = config.get("devices", {})
-        auto_fusmode = device_config.get("auto_fusmode", True)
+        auto_fusmode = device_config.get("auto_fusmode", False)
         csc_filter = device_config.get("csc_filter", "").strip()
 
         # Firmware settings
         firmware_config = config.get("firmware", {})
-        unzip_home_csc = firmware_config.get("unzip_home_csc", True)
+        unzip_home_csc = firmware_config.get("unzip_home_csc", False)
 
         logger.info(
             "Config loaded: dryrun=%s, autofus=%s, auto_fusmode=%s, csc_filter=%s, unzip_home_csc=%s",
