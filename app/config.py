@@ -22,12 +22,14 @@ class AppConfig:
         btn_autofus: Show/hide "Auto FUS Mode" checkbox in GUI.
         auto_fusmode: Automatically enter device into FUS mode when needed.
         csc_filter: Comma-separated list of CSC codes to filter devices.
+        unzip_home_csc: Whether to extract HOME_CSC files when unzipping firmware.
     """
 
     btn_dryrun: bool
     btn_autofus: bool
     auto_fusmode: bool
     csc_filter: str
+    unzip_home_csc: bool
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -58,12 +60,17 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         auto_fusmode = device_config.get("auto_fusmode", True)
         csc_filter = device_config.get("csc_filter", "").strip()
 
+        # Firmware settings
+        firmware_config = config.get("firmware", {})
+        unzip_home_csc = firmware_config.get("unzip_home_csc", True)
+
         logger.info(
-            "Config loaded: dryrun=%s, autofus=%s, auto_fusmode=%s, csc_filter=%s",
+            "Config loaded: dryrun=%s, autofus=%s, auto_fusmode=%s, csc_filter=%s, unzip_home_csc=%s",
             btn_dryrun,
             btn_autofus,
             auto_fusmode,
             csc_filter,
+            unzip_home_csc,
         )
 
         return AppConfig(
@@ -71,6 +78,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
             btn_autofus=btn_autofus,
             auto_fusmode=auto_fusmode,
             csc_filter=csc_filter,
+            unzip_home_csc=unzip_home_csc,
         )
 
     except (FileNotFoundError, OSError) as ex:
@@ -81,4 +89,5 @@ def load_config(config_path: Path | None = None) -> AppConfig:
             btn_autofus=True,
             auto_fusmode=True,
             csc_filter="",
+            unzip_home_csc=True,
         )

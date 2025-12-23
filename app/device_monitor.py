@@ -25,10 +25,16 @@ class DeviceMonitor:
     Runs in a background thread, detecting devices via AT commands, checking
     for firmware updates, and coordinating download/decrypt/extract operations.
 
+    CSC Filter Logic:
+    - Empty filter (default) = accept all devices
+    - Non-empty filter = only accept devices with CSC in the filter list
+
     Attributes:
         ui_updater: UIUpdater instance for thread-safe UI updates.
         progress_callback: Callback for progress updates.
         stop_check: Function that returns True if task should stop.
+        csc_filter: Set of allowed CSC codes (empty = accept all).
+        unzip_home_csc: Whether to extract HOME_CSC files during extraction.
         logger: Logger instance.
     """
 
@@ -37,6 +43,8 @@ class DeviceMonitor:
         ui_updater,
         progress_callback: Callable[[str, int, int], None],
         stop_check: Callable[[], bool],
+        csc_filter: list[str] | None = None,
+        unzip_home_csc: bool = True,
     ):
         """Initialize device monitor.
 
@@ -44,10 +52,15 @@ class DeviceMonitor:
             ui_updater: UIUpdater instance for UI updates.
             progress_callback: Function(stage, done, total) for progress updates.
             stop_check: Function returning True if task should be stopped.
+            csc_filter: Optional list of allowed CSC codes (case-insensitive).
+                Empty list = accept all devices. Non-empty = only accept listed CSCs.
+            unzip_home_csc: Whether to extract HOME_CSC files when unzipping firmware.
         """
         self.ui_updater = ui_updater
         self.progress_callback = progress_callback
         self.stop_check = stop_check
+        self.csc_filter: set[str] = {c.strip().upper() for c in csc_filter} if csc_filter else set()
+        self.unzip_home_csc = unzip_home_csc
         self.logger = logging.getLogger(__name__)
         self.monitoring = False
         self.download_in_progress = False
@@ -89,7 +102,7 @@ class DeviceMonitor:
                     # Clear old component paths from previous device
                     self.ui_updater.clear_component_entries()
 
-                    # Device found - update UI
+                    # Update device fields first (before any filtering check)
                     self.ui_updater.update_device_fields(
                         device.model,
                         device.firmware_version,
@@ -98,6 +111,17 @@ class DeviceMonitor:
                         aid=device.aid or "-",
                         cc=device.cc or "-",
                     )
+
+                    # Check CSC filter (empty = allow all, non-empty = only allow listed CSCs)
+                    device_csc = (device.sales_code or "").strip().upper()
+                    if self.csc_filter and device_csc and device_csc not in self.csc_filter:
+                        self.logger.info("Device rejected by CSC filter: %s (%s)", device.model, device_csc)
+                        self.ui_updater.update_status("Device filtered by CSC")
+                        self.ui_updater.update_progress_message("CSC Filtered", "warning")
+                        # Skip processing for this device, wait for disconnect
+                        time.sleep(1)
+                        continue
+
                     self.ui_updater.update_status("Device detected! Checking firmware...")
 
                     # Check for firmware and handle download/decrypt/extract
@@ -292,6 +316,8 @@ class DeviceMonitor:
     def _extract_firmware(self, decrypted_path: Path, version: str) -> None:  # pylint: disable=unused-argument
         """Extract firmware ZIP file and populate component entries.
 
+        Optionally skips HOME_CSC files based on unzip_home_csc setting.
+
         Args:
             decrypted_path: Path to decrypted firmware file.
             version: Firmware version string.
@@ -304,6 +330,15 @@ class DeviceMonitor:
 
                 with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
                     members = zip_ref.namelist()
+
+                    # Filter out HOME_CSC files if disabled
+                    if not self.unzip_home_csc:
+                        filtered_members = [m for m in members if not m.startswith("HOME_CSC_")]
+                        skipped_count = len(members) - len(filtered_members)
+                        if skipped_count > 0:
+                            self.logger.info("Skipping %d HOME_CSC files (unzip_home_csc=false)", skipped_count)
+                        members = filtered_members
+
                     total_files = len(members)
                     for idx, member in enumerate(members, 1):
                         if self.stop_check():

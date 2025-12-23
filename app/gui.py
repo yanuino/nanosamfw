@@ -230,7 +230,14 @@ class FirmwareDownloaderApp(ctk.CTk):
         def stop_check() -> bool:
             return self.stop_task
 
-        self.device_monitor = DeviceMonitor(self.ui_updater, progress_callback, stop_check)
+        csc_filter_list = self._parse_csc_filter()
+        self.device_monitor = DeviceMonitor(
+            self.ui_updater,
+            progress_callback,
+            stop_check,
+            csc_filter=csc_filter_list,
+            unzip_home_csc=self.config.unzip_home_csc,
+        )
 
         # Set initial placeholders
         self.ui_updater.set_device_placeholders()
@@ -243,6 +250,19 @@ class FirmwareDownloaderApp(ctk.CTk):
             self.ui_updater.update_progress_message("Waiting for device", "info")
             self.monitor_thread = threading.Thread(target=self._run_monitor, daemon=True)
             self.monitor_thread.start()
+
+    def _parse_csc_filter(self) -> list[str]:
+        """Parse CSC filter config into a list of uppercase codes.
+
+        Empty string = allow all devices
+        Comma-separated values = only allow those CSC codes
+
+        Returns:
+            List of uppercase CSC codes to allow, or empty list to allow all.
+        """
+        if not getattr(self.config, "csc_filter", ""):
+            return []
+        return [c.strip().upper() for c in self.config.csc_filter.split(",") if c.strip()]
 
     def _run_monitor(self):
         """Run device monitor in background thread."""
