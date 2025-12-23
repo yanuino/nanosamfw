@@ -48,8 +48,23 @@ if ($LASTEXITCODE -ne 0) {
 
 if ($Clean) {
   Write-Info "Cleaning previous build artifacts"
+  # Preserve config.toml in dist if it exists
+  $configBackup = $null
+  $distConfig = Join-Path $Root "dist/config.toml"
+  if (Test-Path $distConfig) {
+    $configBackup = Get-Content -Path $distConfig -Raw
+    Write-Info "Preserving config.toml from dist/"
+  }
+  
   Remove-Item -Recurse -Force -ErrorAction SilentlyContinue build, dist
   Get-ChildItem -Filter "*.spec" | Remove-Item -Force -ErrorAction SilentlyContinue
+  
+  # Restore config.toml if it was backed up
+  if ($configBackup) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $Root "dist") | Out-Null
+    Set-Content -Path $distConfig -Value $configBackup -NoNewline
+    Write-Info "Restored config.toml to dist/"
+  }
 }
 
 $iconPath = Join-Path $Root "AppIcons/app_icon.ico"
@@ -74,7 +89,12 @@ $hidden = @(
   'serial.tools.list_ports',
   'device',
   'download',
-  'fus'
+  'fus',
+  'app.config',
+  'app.device_monitor',
+  'app.progress_tracker',
+  'app.ui_builder',
+  'app.ui_updater'
 )
 $hiddenArgs = @()
 foreach ($m in $hidden) { $hiddenArgs += @('--hidden-import', $m) }
@@ -97,6 +117,18 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 $exe = Join-Path $Root 'dist/nanosamfw-gui.exe'
 if (Test-Path $exe) {
   Write-Info "Build complete: $exe"
+  
+  # Copy config.toml to dist if not already present
+  $distConfig = Join-Path $Root "dist/config.toml"
+  if (-not (Test-Path $distConfig)) {
+    $sourceConfig = Join-Path $Root "app/config.toml"
+    if (Test-Path $sourceConfig) {
+      Copy-Item $sourceConfig $distConfig
+      Write-Info "Copied config.toml to dist/"
+    } else {
+      Write-Warn "Source config.toml not found at app/config.toml"
+    }
+  }
 } else {
   throw "Build completed but executable not found in dist/"
 }
