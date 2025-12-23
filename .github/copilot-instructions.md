@@ -58,6 +58,13 @@ The codebase is organized into three main packages:
    - Configuration via TOML file (`app/config.toml`)
    - Real-time progress tracking with stop functionality
    - Automatic repository cleanup on startup
+   - **Modular Architecture** (6 focused modules):
+     - `gui.py` (280 lines) - Main window coordination & app lifecycle
+     - `device_monitor.py` (363 lines) - Device detection & firmware orchestration
+     - `ui_builder.py` (352 lines) - UI widget creation & layout
+     - `ui_updater.py` (230 lines) - Thread-safe UI updates via `after()`
+     - `progress_tracker.py` (154 lines) - Progress calculations, ETA, throughput
+     - `config.py` (84 lines) - Configuration loading from TOML
 
 ### Critical FUS Protocol Flow
 ```python
@@ -152,22 +159,48 @@ The GUI application uses a TOML configuration file for behavioral settings:
   - `csc_filter` (string): Comma-separated list of CSC codes to filter devices (empty = no filtering)
 
 **Usage Pattern**:
-- Load config at GUI startup using `toml` library
-- Use config values to control UI element visibility and device handling
+- Loaded via `app.config.load_config()` returning `AppConfig` dataclass
 - Config changes require app restart to take effect
-- Missing config file or keys should use sensible defaults
+- Missing config file or keys use sensible defaults
 
 **Example**:
 ```python
-import tomli  # or tomllib in Python 3.11+
+from app.config import load_config
 
-with open("app/config.toml", "rb") as f:
-    config = tomli.load(f)
-    
-show_dryrun = config.get("gui", {}).get("btn_dryrun", False)
-auto_fusmode = config.get("devices", {}).get("auto_fusmode", True)
-csc_filter = config.get("devices", {}).get("csc_filter", "").strip()
+config = load_config()  # Returns AppConfig dataclass
+show_dryrun = config.btn_dryrun
+auto_fusmode = config.auto_fusmode
+csc_filter = config.csc_filter
 ```
+
+### GUI Module Architecture
+The `app/` package follows a modular design pattern for maintainability:
+
+**Dependency Flow**:
+```
+gui.py (main orchestrator)
+  ├─> config.py (settings via AppConfig dataclass)
+  ├─> ui_builder.py (creates CTk widgets, returns dict)
+  ├─> ui_updater.py (thread-safe updates via after())
+  ├─> progress_tracker.py (calculations, callbacks)
+  └─> device_monitor.py (AT detection, firmware ops)
+        ├─> ui_updater (status/field updates)
+        └─> progress_tracker (via callback)
+```
+
+**Module Responsibilities**:
+- **gui.py**: Application window, lifecycle, icon setup, splash screen, monitoring coordination
+- **config.py**: TOML parsing, AppConfig dataclass, defaults handling
+- **ui_builder.py**: CTkFrame/CTkLabel/CTkEntry creation, layout logic, component organization
+- **ui_updater.py**: Thread-safe UI updates via `after()`, widget state management
+- **progress_tracker.py**: Throttled updates, ETA calculation, MB/s tracking, duration formatting
+- **device_monitor.py**: AT command detection loop, firmware check/download/decrypt/extract, error handling
+
+**Communication Patterns**:
+- UI updates use `root.after(0, callback)` for thread safety
+- Progress tracker uses callback pattern: `callback(stage, done, total, label)`
+- Device monitor holds references to ui_updater and progress_callback
+- Stop functionality via `stop_task` flag checked by device_monitor
 
 ### Key Integration Points
 - **Database**: WAL mode, autocommit (isolation_level=None), explicit BEGIN/COMMIT

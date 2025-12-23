@@ -88,6 +88,14 @@ nav:
     - Reader: api/device.reader.md
     - Models: api/device.models.md
     - Errors: api/device.errors.md
+  - GUI Application:
+    - Architecture: gui-architecture.md
+    - Main Window: api/app.gui.md
+    - Configuration: api/app.config.md
+    - UI Builder: api/app.ui_builder.md
+    - UI Updater: api/app.ui_updater.md
+    - Device Monitor: api/app.device_monitor.md
+    - Progress Tracker: api/app.progress_tracker.md
   - Database:
     - Schema: database/schema.md
     - IMEI Repository: api/download.imei_repository.md

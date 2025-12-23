@@ -3,7 +3,8 @@
 
 """Main GUI application for Samsung Firmware Downloader.
 
-This module provides the main application window and device monitoring logic.
+This module provides the main application window, coordinating UI components,
+device monitoring, and firmware operations.
 """
 
 import ctypes
@@ -13,21 +14,19 @@ import tempfile
 import threading
 import time
 import tkinter as tk
-import tomllib
-import zipfile
 from importlib.resources import files
-from pathlib import Path
 from typing import Optional
 
 import customtkinter as ctk
-import pyperclip
 
-from device import DeviceNotFoundError, read_device_info_at
-from device.errors import DeviceError
-from download import check_and_prepare_firmware, cleanup_repository, download_and_decrypt, init_db
+from app.config import load_config
+from app.device_monitor import DeviceMonitor
+from app.progress_tracker import ProgressTracker
+from app.ui_builder import UIBuilder
+from app.ui_updater import UIUpdater
+from download import cleanup_repository, init_db
 from download.config import PATHS
 from download.service import get_session_id
-from fus.errors import FOTAModelOrRegionNotFound, FOTANoFirmware, InformError
 
 
 class FirmwareDownloaderApp(ctk.CTk):
@@ -39,6 +38,7 @@ class FirmwareDownloaderApp(ctk.CTk):
     Attributes:
         monitoring: Flag indicating if device monitoring is active.
         download_in_progress: Flag indicating if download is in progress.
+        stop_task: Flag to stop active download/decrypt/extract.
     """
 
     def __init__(self):
@@ -55,13 +55,11 @@ class FirmwareDownloaderApp(ctk.CTk):
         self.logger.info("Session ID: %s", get_session_id())
 
         # Load configuration
-        self._load_config()
+        self.config = load_config()
 
         # Window configuration
         self.title("Samsung Firmware Downloader")
-        # Set application/window icon from AppIcons
         self._set_app_icon()
-        # Fixed width, auto-size height to content
         self.geometry("1024x")
         self.minsize(1024, 0)
 
@@ -72,19 +70,12 @@ class FirmwareDownloaderApp(ctk.CTk):
         # State flags
         self.monitoring = False
         self.download_in_progress = False
-        self.stop_task = False  # Flag to stop active download/decrypt/extract
+        self.stop_task = False
         self.monitor_thread: Optional[threading.Thread] = None
         self.startup_cleanup_done = False
-        # Progress throttling state
-        self._last_progress_time: float = 0.0
-        self._last_progress_pct: dict[str, float] = {
-            "download": 0.0,
-            "decrypt": 0.0,
-            "extract": 0.0,
-        }
-        # Per-stage timing/bytes state for throughput and end time
-        self._stage_start_time: dict[str, float] = {}
-        self._stage_last_done: dict[str, int] = {}
+
+        # Initialize UI builder
+        self.ui_builder = UIBuilder(self, self.config)
 
         # Run startup cleanup before building main UI
         self._run_startup_cleanup()
@@ -95,36 +86,9 @@ class FirmwareDownloaderApp(ctk.CTk):
         Creates a temporary frame with a progress bar and status label. The
         main application widgets are only created after cleanup completes.
         """
-        # Splash frame (full window)
-        self.splash_frame = ctk.CTkFrame(self)
-        self.splash_frame.pack(fill="both", expand=True, padx=40, pady=40)
-
-        title = ctk.CTkLabel(
-            self.splash_frame,
-            text="Initializing Repository",
-            font=ctk.CTkFont(size=26, weight="bold"),
-        )
-        title.pack(pady=(0, 30))
-
-        self.cleanup_status = ctk.CTkLabel(
-            self.splash_frame,
-            text="Scanning firmware records...",
-            font=ctk.CTkFont(size=14),
-            justify="left",
-        )
-        self.cleanup_status.pack(fill="x", pady=(0, 20))
-
-        self.cleanup_progress = ctk.CTkProgressBar(self.splash_frame)
-        self.cleanup_progress.pack(fill="x", pady=(0, 10))
-        self.cleanup_progress.set(0)
-
-        self.cleanup_details = ctk.CTkLabel(
-            self.splash_frame,
-            text="",
-            font=ctk.CTkFont(size=12),
-            justify="left",
-        )
-        self.cleanup_details.pack(fill="x", pady=(0, 10))
+        # Create splash widgets
+        splash_widgets = self.ui_builder.create_splash_widgets()
+        self.splash_widgets = splash_widgets
 
         # Run cleanup in background thread to keep UI responsive
         threading.Thread(target=self._perform_cleanup, daemon=True).start()
@@ -185,10 +149,10 @@ class FirmwareDownloaderApp(ctk.CTk):
 
         def progress_cb(processed: int, total: int, missing: int, deleted: int, dec_deleted: int):
             pct = processed / total if total else 1.0
-            self.after(0, lambda v=pct: self.cleanup_progress.set(v))
+            self.after(0, lambda v=pct: self.splash_widgets["cleanup_progress"].set(v))
             self.after(
                 0,
-                lambda: self.cleanup_details.configure(
+                lambda: self.splash_widgets["cleanup_details"].configure(
                     text=(
                         f"Processed {processed}/{total} | Missing encrypted: {missing} | "
                         f"Records deleted: {deleted} | Decrypted deleted: {dec_deleted}"
@@ -197,21 +161,21 @@ class FirmwareDownloaderApp(ctk.CTk):
             )
 
         # Start cleanup
-        self.after(0, lambda: self.cleanup_status.configure(text="Cleaning repository..."))
+        self.after(0, lambda: self.splash_widgets["cleanup_status"].configure(text="Cleaning repository..."))
         stats = cleanup_repository(progress_cb)
         summary = (
             f"Cleanup complete. Inspected: {stats['total_records']} | Missing: {stats['missing_encrypted']} | "
             f"Deleted: {stats['records_deleted']} | Decrypted removed: {stats['decrypted_deleted']}"
         )
-        self.after(0, lambda: self.cleanup_status.configure(text=summary))
-        self.after(0, lambda: self.cleanup_progress.set(1.0))
+        self.after(0, lambda: self.splash_widgets["cleanup_status"].configure(text=summary))
+        self.after(0, lambda: self.splash_widgets["cleanup_progress"].set(1.0))
         time.sleep(0.5)
         self.after(0, self._finish_startup)
 
     def _finish_startup(self) -> None:
         """Destroy splash and build main application widgets."""
-        if hasattr(self, "splash_frame"):
-            self.splash_frame.destroy()
+        if "splash_frame" in self.splash_widgets:
+            self.splash_widgets["splash_frame"].destroy()
         self._create_widgets()
         self.startup_cleanup_done = True
         # Auto-start monitoring after UI is ready
@@ -244,829 +208,62 @@ class FirmwareDownloaderApp(ctk.CTk):
         log_func = getattr(self.logger, level, self.logger.info)
         log_func(message)
 
-    def _load_config(self):
-        """Load configuration from config.toml file."""
-        config_path = Path(__file__).parent / "config.toml"
-        try:
-            with open(config_path, "rb") as f:
-                config = tomllib.load(f)
-
-            # GUI settings
-            gui_config = config.get("gui", {})
-            self.config_btn_dryrun = gui_config.get("btn_dryrun", False)
-            self.config_btn_autofus = gui_config.get("btn_autofus", True)
-
-            # Device settings
-            device_config = config.get("devices", {})
-            self.config_auto_fusmode = device_config.get("auto_fusmode", True)
-            self.config_csc_filter = device_config.get("csc_filter", "").strip()
-
-            self._log(
-                "info",
-                f"Config loaded: dryrun={self.config_btn_dryrun}, autofus={self.config_btn_autofus}, auto_fusmode={self.config_auto_fusmode}, csc_filter={self.config_csc_filter}",
-            )
-        except (FileNotFoundError, OSError) as ex:
-            # Use defaults if config file not found
-            self.config_btn_dryrun = False
-            self.config_btn_autofus = True
-            self.config_auto_fusmode = True
-            self.config_csc_filter = ""
-            self._log("warning", f"Config file not found or error reading: {ex}. Using defaults.")
-
     def _create_widgets(self):
         """Create and layout all UI widgets."""
-        # pylint: disable=W0201  # Allow setting instance attributes outside __init__ for Tkinter widgets
+        # pylint: disable=W0201  # Widgets initialized here after splash screen
+        # Create main widgets using UI builder
+        self.widgets = self.ui_builder.create_main_widgets(stop_callback=self.stop_current_task)
 
-        # Main container with padding
-        main_frame = ctk.CTkFrame(self)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        # Initialize UI updater with widget references
+        self.ui_updater = UIUpdater(self, self.widgets)
 
-        # Title
-        title_label = ctk.CTkLabel(
-            main_frame,
-            text="Samsung Firmware Downloader",
-            font=ctk.CTkFont(size=24, weight="bold"),
-        )
-        title_label.pack(pady=(0, 20))
+        # Initialize progress tracker
+        def progress_ui_callback(stage: str, done: int, total: int, label: str):
+            self.ui_updater.update_progress_bar(stage, done, total, label)
 
-        # Status frame
-        status_frame = ctk.CTkFrame(main_frame)
-        status_frame.pack(fill="x", pady=10)
+        self.progress_tracker = ProgressTracker(progress_ui_callback)
 
-        ctk.CTkLabel(status_frame, text="Status:", font=ctk.CTkFont(size=14, weight="bold")).pack(
-            anchor="w", padx=10, pady=(10, 5)
-        )
+        # Initialize device monitor
+        def progress_callback(stage: str, done: int, total: int):
+            self.progress_tracker.update_progress(stage, done, total)
 
-        self.status_label = ctk.CTkLabel(
-            status_frame,
-            text="Stopped. Press 'Start Monitoring' to begin device detection",
-            font=ctk.CTkFont(size=12),
-        )
-        self.status_label.pack(anchor="w", padx=10, pady=(0, 10))
+        def stop_check() -> bool:
+            return self.stop_task
 
-        # Device info frame
-        device_frame = ctk.CTkFrame(main_frame)
-        device_frame.pack(fill="x", pady=10)
+        self.device_monitor = DeviceMonitor(self.ui_updater, progress_callback, stop_check)
 
-        ctk.CTkLabel(device_frame, text="Device Information:", font=ctk.CTkFont(size=14, weight="bold")).pack(
-            anchor="w", padx=10, pady=(10, 5)
-        )
-
-        # Grid for entries
-        entries_frame = ctk.CTkFrame(device_frame)
-        entries_frame.pack(fill="x", padx=10, pady=(0, 10))
-
-        def _make_full_row(row: int, label: str) -> ctk.CTkEntry:
-            ctk.CTkLabel(entries_frame, text=label, font=ctk.CTkFont(size=12, weight="bold")).grid(
-                row=row, column=0, sticky="w", pady=4
-            )
-            entry = ctk.CTkEntry(entries_frame, font=ctk.CTkFont(size=12))
-            entry.grid(row=row, column=1, columnspan=5, sticky="ew", padx=(10, 0), pady=4)
-            # Make read-only
-            entry.configure(state="disabled")
-            return entry
-
-        def _make_col(row: int, col: int, label: str) -> ctk.CTkEntry:
-            ctk.CTkLabel(entries_frame, text=label, font=ctk.CTkFont(size=12, weight="bold")).grid(
-                row=row, column=col * 2, sticky="w", pady=4, padx=(10, 0) if col > 0 else 0
-            )
-            entry = ctk.CTkEntry(entries_frame, font=ctk.CTkFont(size=12))
-            entry.grid(row=row, column=col * 2 + 1, sticky="ew", padx=(5, 0), pady=4)
-            # Make read-only
-            entry.configure(state="disabled")
-            return entry
-
-        # Configure columns for equal width: 0(label), 1-2(entry1), 3-4(entry2), 5-6(entry3)
-        entries_frame.grid_columnconfigure(1, weight=1)
-        entries_frame.grid_columnconfigure(3, weight=1)
-        entries_frame.grid_columnconfigure(5, weight=1)
-
-        self.model_entry = _make_full_row(0, "Model")
-        self.firmware_entry = _make_full_row(1, "Firmware")
-        # Row 2: Region/CSC, AID, CC on same line
-        self.region_entry = _make_col(2, 0, "Region/CSC")
-        self.aid_entry = _make_col(2, 1, "AID")
-        self.cc_entry = _make_col(2, 2, "CC")
-        self.imei_entry = _make_full_row(3, "IMEI")
-
-        # Placeholders
-        self._set_device_placeholders()
-
-        # Progress frame
-        progress_frame = ctk.CTkFrame(main_frame)
-        progress_frame.pack(fill="x", pady=10)
-
-        ctk.CTkLabel(progress_frame, text="Progress:", font=ctk.CTkFont(size=14, weight="bold")).pack(
-            anchor="w", padx=10, pady=(10, 5)
-        )
-
-        # Container for progress bar and stop button (side by side)
-        self.progress_bar_container = ctk.CTkFrame(progress_frame, fg_color="transparent")
-        self.progress_bar_container.pack(fill="x", padx=10, pady=(0, 10))
-        self.progress_bar_container.pack_forget()  # Hidden by default
-
-        # Progress bar frame (left side, expandable)
-        progress_bar_frame = ctk.CTkFrame(self.progress_bar_container, fg_color="transparent")
-        progress_bar_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
-
-        self.download_progress_bar = ctk.CTkProgressBar(progress_bar_frame)
-        self.download_progress_bar.pack(fill="x", pady=(0, 2))
-        self.download_progress_bar.set(0)
-
-        self.download_progress_label = ctk.CTkLabel(progress_bar_frame, text="", font=ctk.CTkFont(size=11))
-        self.download_progress_label.pack(anchor="w")
-
-        # Stop button (right side, fixed width)
-        self.stop_button = ctk.CTkButton(
-            self.progress_bar_container,
-            text="Stop Task",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color="#FF453A",
-            hover_color="#E0342F",
-            command=self.stop_current_task,
-            width=100,
-            bg_color="transparent",
-        )
-        self.stop_button.pack(side="right")
-
-        # Message label for highlighted text (shown when not downloading)
-        self.progress_message = ctk.CTkLabel(
-            progress_frame,
-            text="Waiting for device",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color=("#3B8ED0", "#1F6AA5"),  # Blue background
-            corner_radius=8,
-            height=40,
-        )
-        self.progress_message.pack(fill="x", padx=10, pady=(0, 10))
-
-        # Firmware components frame
-        components_frame = ctk.CTkFrame(main_frame)
-        components_frame.pack(fill="x", pady=10)
-
-        ctk.CTkLabel(components_frame, text="Firmware Components:", font=ctk.CTkFont(size=14, weight="bold")).pack(
-            anchor="w", padx=10, pady=(10, 5)
-        )
-
-        # Grid for component entries
-        comp_entries_frame = ctk.CTkFrame(components_frame)
-        comp_entries_frame.pack(fill="x", padx=10, pady=(0, 10))
-
-        def _make_comp_row(row: int, label: str, *, hidden: bool = False) -> ctk.CTkEntry:
-            label_widget = ctk.CTkLabel(
-                comp_entries_frame,
-                text=label,
-                font=ctk.CTkFont(size=12, weight="bold"),
-                cursor="hand2" if not hidden else "",
-            )
-            label_widget.grid(row=row, column=0, sticky="w", pady=4)
-            entry = ctk.CTkEntry(comp_entries_frame, font=ctk.CTkFont(size=11))
-            entry.grid(row=row, column=1, sticky="ew", padx=(10, 0), pady=4)
-            comp_entries_frame.grid_columnconfigure(1, weight=1)
-            entry.configure(state="disabled")
-            original_fg = entry.cget("fg_color")
-
-            # Make label clickable to copy entry value to clipboard (unless hidden)
-            def _copy_to_clipboard(_e):
-                value = entry.get()
-                if value and value != "-":
-                    try:
-                        pyperclip.copy(value)
-                        self._log("info", f"Copied {label} path to clipboard: {value}")
-                        # Brief visual feedback
-                        entry.configure(fg_color="#2CC985")
-                        self.after(1000, lambda: entry.configure(fg_color=original_fg))
-                    except (OSError, RuntimeError) as ex:
-                        self._log("error", f"Failed to copy to clipboard: {ex}")
-
-            if not hidden:
-                label_widget.bind("<Button-1>", _copy_to_clipboard)
-                entry.bind("<Button-1>", _copy_to_clipboard)
-            else:
-                # Hide the widgets but keep them instantiated for future reuse
-                label_widget.grid_remove()
-                entry.grid_remove()
-
-            return entry
-
-        self.ap_entry = _make_comp_row(0, "BL")
-        self.bl_entry = _make_comp_row(1, "AP")
-        self.cp_entry = _make_comp_row(2, "CP")
-        self.csc_entry = _make_comp_row(3, "CSC")
-        self.home_entry = _make_comp_row(4, "HOME", hidden=True)
-
-        # Settings frame at bottom (horizontal layout)
-        settings_frame = ctk.CTkFrame(main_frame)
-        settings_frame.pack(fill="x", pady=10)
-
-        # Horizontal container for all settings widgets
-        settings_container = ctk.CTkFrame(settings_frame, fg_color="transparent")
-        settings_container.pack(fill="x", padx=10, pady=10)
-
-        # Dry run checkbox - always visible
-        self.dryrun_checkbox = ctk.CTkCheckBox(
-            settings_container,
-            text="Dry run",
-            font=ctk.CTkFont(size=12),
-        )
-        # If config false: grayed/disabled and unchecked
-        # If config true: enabled and unchecked (user can check it)
-        if not self.config_btn_dryrun:
-            self.dryrun_checkbox.configure(state="disabled")
-        self.dryrun_checkbox.pack(side="left", padx=(0, 20))
-
-        # Auto FUS Mode checkbox - always visible
-        self.autofus_checkbox = ctk.CTkCheckBox(
-            settings_container,
-            text="Auto FUS Mode",
-            font=ctk.CTkFont(size=12),
-        )
-        # If auto_fusmode=true in [devices]: grayed and checked
-        # If config_btn_autofus=false: grayed and unchecked
-        # If config_btn_autofus=true: enabled and unchecked
-        if self.config_auto_fusmode:
-            self.autofus_checkbox.select()
-            self.autofus_checkbox.configure(state="disabled")
-        elif not self.config_btn_autofus:
-            self.autofus_checkbox.configure(state="disabled")
-        self.autofus_checkbox.pack(side="left", padx=(0, 20))
-
-        # CSC Filter label
-        if self.config_csc_filter:
-            csc_label_text = f"CSC Filter: {self.config_csc_filter}"
-        else:
-            csc_label_text = "CSC Filter: (none)"
-        self.csc_filter_label = ctk.CTkLabel(
-            settings_container,
-            text=csc_label_text,
-            font=ctk.CTkFont(size=12),
-        )
-        self.csc_filter_label.pack(side="left", padx=(0, 20))
-
-    def update_status(self, message: str):
-        """Update status label with thread-safe scheduling.
-
-        Args:
-            message: Status message to display.
-        """
-        self.after(0, lambda: self.status_label.configure(text=message))
-
-    def _set_device_placeholders(self) -> None:
-        """Set placeholder text for device fields (no device detected)."""
-
-        def _set(e: ctk.CTkEntry, text: str):
-            e.configure(state="normal")
-            e.delete(0, "end")
-            e.insert(0, text)
-            e.configure(state="disabled")
-
-        _set(self.model_entry, "-")
-        _set(self.firmware_entry, "-")
-        _set(self.region_entry, "-")
-        _set(self.aid_entry, "-")
-        _set(self.cc_entry, "-")
-        _set(self.imei_entry, "-")
-
-    def update_device_fields(
-        self, model: str, firmware: str, region: str, imei: str, aid: str = "-", cc: str = "-"
-    ) -> None:
-        """Update individual device info entries (read-only display).
-
-        Args:
-            model: Device model.
-            firmware: Firmware version.
-            region: Region/CSC code.
-            imei: IMEI string.
-            aid: Application ID.
-            cc: Country Code.
-        """
-
-        def _set(e: ctk.CTkEntry, text: str):
-            e.configure(state="normal")
-            e.delete(0, "end")
-            e.insert(0, text)
-            e.configure(state="disabled")
-
-        def _update():
-            _set(self.model_entry, model or "-")
-            _set(self.firmware_entry, firmware or "-")
-            _set(self.region_entry, region or "-")
-            _set(self.aid_entry, aid or "-")
-            _set(self.cc_entry, cc or "-")
-            _set(self.imei_entry, imei or "-")
-
-        self.after(0, _update)
-
-    def _clear_component_entries(self) -> None:
-        """Clear all firmware component entries."""
-
-        def _clear(e: ctk.CTkEntry):
-            e.configure(state="normal")
-            e.delete(0, "end")
-            e.configure(state="disabled")
-
-        _clear(self.ap_entry)
-        _clear(self.bl_entry)
-        _clear(self.cp_entry)
-        _clear(self.csc_entry)
-        _clear(self.home_entry)
-
-    def _populate_component_entries(self, unzip_dir: Path) -> None:
-        """Populate firmware component entries from unzipped directory.
-
-        Args:
-            unzip_dir: Directory containing unzipped firmware files.
-        """
-
-        def _set(e: ctk.CTkEntry, text: str):
-            e.configure(state="normal")
-            e.delete(0, "end")
-            e.insert(0, text)
-            e.configure(state="disabled")
-
-        # Find files by prefix
-        components: dict[str, str | None] = {
-            "AP": None,
-            "BL": None,
-            "CP": None,
-            "CSC": None,
-            "HOME": None,
-        }
-        for file_path in unzip_dir.iterdir():
-            if file_path.is_file():
-                name = file_path.name
-                for prefix in components:
-                    if name.startswith(prefix):
-                        components[prefix] = str(file_path.resolve())
-                        break
-
-        def _update():
-            _set(self.ap_entry, components["AP"] or "-")
-            _set(self.bl_entry, components["BL"] or "-")
-            _set(self.cp_entry, components["CP"] or "-")
-            _set(self.csc_entry, components["CSC"] or "-")
-            _set(self.home_entry, components["HOME"] or "-")
-
-        self.after(0, _update)
-
-    def update_progress(self, stage: str, done: int, total: int):
-        """Unified progress update for both download and decrypt stages.
-
-        Args:
-            stage: "download" or "decrypt".
-            done: Bytes processed so far.
-            total: Total bytes for stage.
-        """
-        # Throttle UI updates to avoid massive Tk event queue and slowdowns
-        now = time.monotonic()
-        last_time = getattr(self, "_last_progress_time", 0.0)
-        last_pct = self._last_progress_pct.get(stage, 0.0)
-
-        pct = done / total if total > 0 else 0.0
-        pct_delta = pct - last_pct
-
-        # Conditions to push an update:
-        # - Completion
-        # - Significant visual change (>= 1%)
-        # - Or at least every 100ms
-        should_update = done >= total or pct_delta >= 0.01 or (now - last_time) >= 0.1
-
-        if not should_update:
-            return
-
-        # Record last update markers
-        self._last_progress_time = now
-        self._last_progress_pct[stage] = pct
-
-        # Initialize/reset per-stage timers if needed (new stage or restart)
-        last_done = self._stage_last_done.get(stage, -1)
-        if stage not in self._stage_start_time or done < last_done:
-            self._stage_start_time[stage] = now
-        self._stage_last_done[stage] = done
-
-        mb_done = done / (1024 * 1024)
-        mb_total = total / (1024 * 1024)
-        elapsed = max(0.0, now - self._stage_start_time.get(stage, now))
-        speed_bps = (done / elapsed) if elapsed > 0.0 else 0.0
-        speed_mbps = speed_bps / (1024 * 1024)
-
-        # Compute ETA based on current average speed
-        eta_secs = ((total - done) / speed_bps) if (speed_bps > 0 and total > 0) else None
-
-        def _fmt_eta(sec: float | None) -> str:
-            if sec is None:
-                return "--:--"
-            sec_i = int(sec)
-            h, r = divmod(sec_i, 3600)
-            m, s = divmod(r, 60)
-            if h:
-                return f"{h:d}:{m:02d}:{s:02d}"
-            return f"{m:d}:{s:02d}"
-
-        eta_str = _fmt_eta(eta_secs)
-
-        # Format elapsed HH:MM:SS
-        def _fmt_dur(sec: float) -> str:
-            sec_i = int(sec)
-            h, r = divmod(sec_i, 3600)
-            m, s = divmod(r, 60)
-            if h:
-                return f"{h:d}:{m:02d}:{s:02d}"
-            return f"{m:d}:{s:02d}"
-
-        elapsed_str = _fmt_dur(elapsed)
-
-        if stage == "extract":
-            # Extract stage uses file count, not bytes
-            prefix = "Extracting"
-            label = f"{prefix}: {done} / {total} files • Elapsed {elapsed_str} • ETA {eta_str}"
-        else:
-            prefix = "Downloading" if stage == "download" else "Decrypting"
-            if speed_mbps > 0:
-                label = (
-                    f"{prefix}: {mb_done:.1f} MB / {mb_total:.1f} MB • "
-                    f"{speed_mbps:.1f} MB/s • Elapsed {elapsed_str} • ETA {eta_str}"
-                )
-            else:
-                label = f"{prefix}: {mb_done:.1f} MB / {mb_total:.1f} MB • Elapsed {elapsed_str}"
-
-        def _update():
-            self.progress_message.pack_forget()
-            if not self.progress_bar_container.winfo_ismapped():
-                self.progress_bar_container.pack(fill="x", padx=10, pady=(0, 10))
-            self.download_progress_bar.set(pct)
-            self.download_progress_label.configure(text=label)
-
-        self.after(0, _update)
-
-    def update_progress_message(self, message: str, color: str = "info"):
-        """Update progress message with color coding.
-
-        Args:
-            message: Message to display.
-            color: Color type - "info" (blue), "success" (green), "warning" (orange), "error" (red).
-        """
-        colors = {
-            "info": ("#3B8ED0", "#1F6AA5"),
-            "success": ("#2CC985", "#2FA572"),
-            "warning": ("#FF9500", "#E68600"),
-            "error": ("#FF453A", "#E0342F"),
-        }
-        fg_color = colors.get(color, colors["info"])
-
-        def _update():
-            self.progress_bar_container.pack_forget()
-            self.progress_message.pack(fill="x", padx=10, pady=(0, 10))
-            self.progress_message.configure(text=message, fg_color=fg_color)
-
-        self.after(0, _update)
+        # Set initial placeholders
+        self.ui_updater.set_device_placeholders()
 
     def start_monitoring(self):
         """Start device monitoring in background thread (auto-start)."""
         if not self.monitoring:
             self.monitoring = True
-            self.update_status("Monitoring for devices...")
-            self.update_progress_message("Waiting for device", "info")
-            self.monitor_thread = threading.Thread(target=self._monitor_devices, daemon=True)
+            self.ui_updater.update_status("Monitoring for devices...")
+            self.ui_updater.update_progress_message("Waiting for device", "info")
+            self.monitor_thread = threading.Thread(target=self._run_monitor, daemon=True)
             self.monitor_thread.start()
 
-    # stop_monitoring removed (no longer user-invoked buttons). Kept minimal for future use.
+    def _run_monitor(self):
+        """Run device monitor in background thread."""
+        self.device_monitor.start()
+
     def stop_monitoring(self):  # pragma: no cover
         """Stop device monitoring."""
         self.monitoring = False
-        self.update_status("Monitoring stopped")
-        self.update_progress_message("Monitoring stopped", "info")
+        self.device_monitor.stop()
+        self.ui_updater.update_status("Monitoring stopped")
+        self.ui_updater.update_progress_message("Monitoring stopped", "info")
 
     def stop_current_task(self):
         """Stop any active download, decrypt, or extract task.
 
         Device monitoring remains active. The stop flag is checked in download loops.
         """
-        if self.download_in_progress:
+        if self.device_monitor.download_in_progress:
             self._log("info", "User requested task stop")
             self.stop_task = True
-            self.update_status("Stopping task...")
-
-    def _update_stop_button_state(self):
-        """Update stop button enabled/disabled state based on task status."""
-        if self.download_in_progress and not self.stop_task:
-            self.stop_button.configure(state="normal")
-        else:
-            self.stop_button.configure(state="disabled")
-
-    def _monitor_devices(self):
-        """Background thread monitoring for device connections."""
-        device_connected = False
-        last_device_model = None
-
-        while self.monitoring:
-            try:
-                # Try to detect device via AT commands
-                device = read_device_info_at()
-
-                # Device found
-                if not device_connected:
-                    # New device connection
-                    device_connected = True
-                    last_device_model = device.model
-                    self._log("info", f"Device connected: {device.model}")
-                    self._log("info", f"CSC: {device.sales_code}, AID: {device.aid}, CC: {device.cc}")
-                    self._log("info", f"IMEI: {device.imei},SN: {device.serial_number},LOCK: {device.lock_status}")
-                    self._log("info", f"Firmware: {device.firmware_version}")
-
-                    # Clear old component paths from previous device
-                    self._clear_component_entries()
-
-                    # Device found - update UI
-                    self.update_device_fields(
-                        device.model,
-                        device.firmware_version,
-                        device.sales_code,
-                        device.imei,
-                        aid=device.aid or "-",
-                        cc=device.cc or "-",
-                    )
-                    self.update_status("Device detected! Checking firmware...")
-
-                    # Check for firmware via FOTA and repository cache
-                    try:
-                        self._log("info", f"Checking FOTA for {device.model}/{device.sales_code}")
-                        latest, is_cached = check_and_prepare_firmware(
-                            device.model,
-                            device.sales_code,
-                            device.imei,
-                            device.firmware_version,
-                            serial_number=device.serial_number,
-                            lock_status=device.lock_status,
-                            aid=device.aid,
-                            cc=device.cc,
-                        )
-                        self._log("info", f"FOTA returned version: {latest} (cached: {is_cached})")
-
-                        if latest == device.firmware_version:
-                            msg = f"Firmware already latest version: {latest}"
-                            self._log("info", msg)
-                            self.update_status("Device connected")
-                            self.update_progress_message(msg, "success")
-                        elif is_cached:
-                            # Firmware already downloaded, just decrypt and extract
-                            msg = f"Firmware {latest} found in repository. Preparing..."
-                            self._log("info", msg)
-                            self.update_status("Device connected - Preparing cached firmware")
-                            self.update_progress_message(msg, "info")
-
-                            self.download_in_progress = True
-                            self.stop_task = False
-                            self.after(0, self._update_stop_button_state)
-
-                            def progress_cb(stage: str, done: int, total: int):
-                                self.update_progress(stage, done, total)
-
-                            try:
-                                # Use cached firmware - will skip download
-                                firmware, decrypted = download_and_decrypt(
-                                    device.model,
-                                    device.sales_code,
-                                    device.imei,
-                                    device.firmware_version,
-                                    version=latest,  # Pass version to avoid duplicate FOTA query
-                                    resume=True,
-                                    progress_cb=progress_cb,
-                                    stop_check=lambda: self.stop_task,
-                                )
-
-                                msg = f"Cached firmware ready! Version: {firmware.version_code}"
-                                self._log("info", f"{msg} decrypted to {decrypted}")
-
-                                # Extract firmware (same logic as download path)
-                                try:
-                                    decrypted_path = Path(decrypted)
-                                    if decrypted_path.exists() and decrypted_path.suffix in [
-                                        ".zip",
-                                        ".ZIP",
-                                    ]:
-                                        self.update_status("Device connected - Extracting firmware")
-                                        unzip_dir = decrypted_path.parent / decrypted_path.stem
-                                        unzip_dir.mkdir(parents=True, exist_ok=True)
-
-                                        with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
-                                            members = zip_ref.namelist()
-                                            total_files = len(members)
-                                            for idx, member in enumerate(members, 1):
-                                                if self.stop_task:
-                                                    raise RuntimeError("Extraction task stopped by user")
-                                                zip_ref.extract(member, unzip_dir)
-                                                self.update_progress("extract", idx, total_files)
-
-                                        self._log("info", f"Extracted cached firmware to {unzip_dir}")
-                                        self._populate_component_entries(unzip_dir)
-                                        msg = f"Firmware ready! Version: {firmware.version_code}"
-                                except zipfile.BadZipFile:
-                                    self._log("error", "Cached file is not a valid ZIP archive")
-                                except (OSError, IOError, ValueError) as ex:
-                                    self._log("error", f"Extraction failed: {ex}")
-
-                                self.update_status("Device connected")
-                                self.update_progress_message(msg, "success")
-                                self.download_in_progress = False
-                                self.after(0, self._update_stop_button_state)
-
-                            except RuntimeError as ex:
-                                # Task was stopped by user
-                                if "stopped" in str(ex).lower():
-                                    self._log("info", f"Task stopped: {ex}")
-                                    self.update_status("Device connected")
-                                    self.update_progress_message("Task stopped", "warning")
-                                else:
-                                    self._log("error", f"Runtime error: {ex}")
-                                    self.update_status("Device connected - Error")
-                                    self.update_progress_message("Waiting for device", "info")
-                                self.download_in_progress = False
-                                self.stop_task = False
-                                self.after(0, self._update_stop_button_state)
-
-                            except InformError.BadStatus as ex:
-                                status_msg = str(ex)
-                                if "400" in status_msg:
-                                    msg = "Please update via OTA (Over-The-Air)"
-                                    self._log("warning", "FUS error 400: Firmware not available")
-                                    color = "warning"
-                                elif "408" in status_msg:
-                                    msg = "Invalid model, CSC, or IMEI. Please check device information"
-                                    self._log("error", f"FUS error 408: {msg}")
-                                    color = "error"
-                                else:
-                                    msg = f"FUS server error: {ex}"
-                                    self._log("error", msg)
-                                    color = "error"
-
-                                self.update_status("Device connected")
-                                self.update_progress_message(msg, color)
-                                self.download_in_progress = False
-                                self.after(0, self._update_stop_button_state)
-                        else:
-                            # Download firmware via FUS
-                            self.download_in_progress = True
-                            self.stop_task = False
-                            self.after(0, self._update_stop_button_state)
-                            self._log(
-                                "info",
-                                f"Downloading {latest} (current: {device.firmware_version})",
-                            )
-                            self.update_status("Device connected - Downloading firmware")
-
-                            def progress_cb(stage: str, done: int, total: int):
-                                self.update_progress(stage, done, total)
-
-                            try:
-                                # Reset unified bar
-                                self.download_progress_bar.set(0)
-                                firmware, decrypted = download_and_decrypt(
-                                    device.model,
-                                    device.sales_code,
-                                    device.imei,
-                                    device.firmware_version,
-                                    version=latest,  # Pass version to avoid duplicate FOTA query
-                                    resume=True,
-                                    progress_cb=progress_cb,
-                                    stop_check=lambda: self.stop_task,
-                                )
-
-                                msg = f"Download complete! Version: {firmware.version_code}"
-                                self._log("info", f"{msg} saved to {decrypted}")
-
-                                # Unzip firmware
-                                try:
-                                    decrypted_path = Path(decrypted)
-                                    if decrypted_path.exists() and decrypted_path.suffix in [
-                                        ".zip",
-                                        ".ZIP",
-                                    ]:
-                                        self.update_status("Device connected - Extracting firmware")
-                                        unzip_dir = decrypted_path.parent / decrypted_path.stem
-                                        unzip_dir.mkdir(parents=True, exist_ok=True)
-
-                                        with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
-                                            members = zip_ref.namelist()
-                                            total_files = len(members)
-                                            for idx, member in enumerate(members, 1):
-                                                if self.stop_task:
-                                                    raise RuntimeError("Extraction task stopped by user")
-                                                zip_ref.extract(member, unzip_dir)
-                                                # Update progress: use file count as "bytes"
-                                                self.update_progress("extract", idx, total_files)
-
-                                        self._log("info", f"Extracted firmware to {unzip_dir}")
-                                        self._populate_component_entries(unzip_dir)
-                                        msg = f"Firmware extracted! Version: {firmware.version_code}"
-                                except zipfile.BadZipFile:
-                                    self._log("error", "Downloaded file is not a valid ZIP archive")
-                                except (OSError, IOError, ValueError) as ex:
-                                    self._log("error", f"Extraction failed: {ex}")
-
-                                self.update_status("Device connected")
-                                self.update_progress_message(msg, "success")
-                                self.download_in_progress = False
-                                self.after(0, self._update_stop_button_state)
-
-                            except RuntimeError as ex:
-                                # Task was stopped by user
-                                if "stopped" in str(ex).lower():
-                                    self._log("info", f"Task stopped: {ex}")
-                                    self.update_status("Device connected")
-                                    self.update_progress_message("Task stopped", "warning")
-                                else:
-                                    self._log("error", f"Runtime error: {ex}")
-                                    self.update_status("Device connected - Error")
-                                    self.update_progress_message("Waiting for device", "info")
-                                self.download_in_progress = False
-                                self.stop_task = False
-                                self.after(0, self._update_stop_button_state)
-
-                            except InformError.BadStatus as ex:
-                                # Check status code to determine error type
-                                status_msg = str(ex)
-                                if "400" in status_msg:
-                                    msg = "Please update via OTA (Over-The-Air)"
-                                    self._log("warning", "FUS error 400: Firmware not available")
-                                    color = "warning"
-                                elif "408" in status_msg:
-                                    msg = "Invalid model, CSC, or IMEI. Please check device information"
-                                    self._log("error", f"FUS error 408: {msg}")
-                                    color = "error"
-                                else:
-                                    msg = f"FUS server error: {ex}"
-                                    self._log("error", msg)
-                                    color = "error"
-
-                                self.update_status("Device connected")
-                                self.update_progress_message(msg, color)
-                                self.download_in_progress = False
-                                self.after(0, self._update_stop_button_state)
-
-                    except FOTAModelOrRegionNotFound:
-                        msg = "Model or CSC not recognized by FOTA"
-                        self._log("warning", f"{msg}: {device.model}/{device.sales_code}")
-                        self.update_status("Device connected")
-                        self.update_progress_message(msg, "warning")
-                    except FOTANoFirmware:
-                        msg = "No firmware available from FOTA"
-                        self._log("warning", f"{msg} for {device.model}/{device.sales_code}")
-                        self.update_status("Device connected")
-                        self.update_progress_message(msg, "warning")
-                    except (OSError, IOError, ValueError, RuntimeError) as ex:
-                        # Generic non-firmware error during check/download
-                        msg = f"Error: {ex}"
-                        self._log("error", msg)
-                        self.update_status("Device connected - Firmware operation error")
-                        self.update_progress_message("Waiting for device", "info")
-                        self.download_in_progress = False
-                        self.after(0, self._update_stop_button_state)
-
-                    # Wait for device disconnect after processing
-                    self.update_status("Waiting for device disconnect...")
-
-                # Device still connected, wait for disconnect
-                time.sleep(1)
-
-            except DeviceNotFoundError:
-                # Device disconnected or not present
-                if device_connected:
-                    # Device was connected, now disconnected
-                    self._log("info", f"Device disconnected: {last_device_model}")
-                    device_connected = False
-                    last_device_model = None
-                    self.update_status("Device disconnected. Waiting for new device...")
-                    self._set_device_placeholders()
-                    # Keep component paths visible until new device connects
-                    self.update_progress_message("Waiting for device", "info")
-
-                # Wait before checking again
-                time.sleep(1)
-
-            except DeviceError as ex:
-                msg = f"Device error: {ex}"
-                self._log("error", msg)
-                # Reset connection state to allow fresh detection attempts
-                device_connected = False
-                last_device_model = None
-                self.update_status("Device error detected - Retrying detection")
-                self._set_device_placeholders()
-                # Keep component paths visible until new device connects
-                # Keep progress zone clean of communication errors
-                self.update_progress_message("Waiting for device", "info")
-                time.sleep(2)
-
-            except (OSError, IOError, ValueError, RuntimeError) as ex:
-                msg = f"Unexpected error: {ex}"
-                self._log("error", msg)
-                device_connected = False
-                last_device_model = None
-                self.update_status("Error occurred - Retrying detection")
-                self._set_device_placeholders()
-                # Keep component paths visible until new device connects
-                self.update_progress_message("Waiting for device", "info")
-                time.sleep(2)
+            self.ui_updater.update_status("Stopping task...")
 
     def run(self):
         """Start the application main loop."""
