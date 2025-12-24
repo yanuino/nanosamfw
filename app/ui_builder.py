@@ -8,6 +8,7 @@ configuration using customtkinter.
 """
 
 import logging
+from collections.abc import Callable
 
 import customtkinter as ctk
 import pyperclip
@@ -35,7 +36,7 @@ class UIBuilder:
         self.config = config
         self.logger = logging.getLogger(__name__)
 
-    def create_main_widgets(self, stop_callback) -> dict:
+    def create_main_widgets(self, stop_callback: Callable[[], None]) -> dict:
         """Create and layout all main application widgets.
 
         Args:

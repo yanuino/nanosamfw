@@ -273,8 +273,6 @@ def list_by_model_csc(
     Args:
         model: Device model identifier.
         csc: Country Specific Code.
-        aid: Optional Application ID filter.
-        cc: Optional Country Code filter.
         since: Optional ISO 8601 UTC timestamp for minimum created_at filter.
         until: Optional ISO 8601 UTC timestamp for maximum created_at filter.
         limit: Maximum number of records to return. Defaults to 200.

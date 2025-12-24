@@ -74,14 +74,20 @@ nav:
   - Index: index.md
   - Core API:
     - FUS Client: api/fus.client.md
+    - Configuration: api/fus.config.md
     - Cryptography: api/fus.crypto.md
+    - CSC List: api/fus.csclist.md
     - Device ID: api/fus.deviceid.md
+    - Decryption: api/fus.decrypt.md
     - Firmware: api/fus.firmware.md
+    - Messages: api/fus.messages.md
+    - Responses: api/fus.responses.md
     - Errors: api/fus.errors.md
   - Download API:
     - Service: api/download.service.md
     - Firmware Repository: api/download.firmware_repository.md
     - Configuration: api/download.config.md
+    - Database: api/download.db.md
   - Device Detection:
     - Overview: api/device.md
     - Detector: api/device.detector.md
