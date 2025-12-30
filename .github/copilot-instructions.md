@@ -29,7 +29,7 @@ The codebase is organized into three main packages:
        - Device must be in download mode (Volume Down + Home + Power)
        - Returns `OdinDeviceInfo` dataclass
        - **Note**: DVIF may not work on all devices/firmware versions
-     - **AT Commands** (`reader_at.py`) - For normal/recovery mode devices
+    - **AT Commands** (`at_client.py`) - For normal/recovery mode devices
        - AT+DEVCONINFO command for device information
        - Parses semicolon-delimited key-value format: `MN(model);VER(fw);PRD(sales);IMEI(imei);...`
        - Standard serial communication (115200 baud, no special flow control)
@@ -289,7 +289,7 @@ def list_downloads(...) -> Iterable[DownloadRecord]:
   - `DeviceIdError` subtypes: `InvalidTAC(tac)`
   - `FOTAError` subtypes: `ModelOrRegionNotFound(model, region)`, `NoFirmware(model, region)`
   - `FOTAParsingError(field, model, region)` - FOTA XML parsing errors
-- **Device Errors** (`device/errors.py`): `DeviceError`, `DeviceNotFoundError`, `DeviceReadError`, `DeviceParseError`
+- **Device Errors** (`device/errors.py`): `DeviceError`, `DeviceNotFoundError`, `DeviceATError`, `DeviceOdinError`
 - **Error Subtype Pattern**: Error classes have nested exception classes with self-managing messages
   - Example: `raise InformError.MissingField("BINARY_NAME")` instead of `raise InformError("Missing BINARY_NAME in inform response")`
   - Messages automatically include context (model, region, status codes, etc.)

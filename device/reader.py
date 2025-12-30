@@ -19,14 +19,8 @@ from typing import Optional
 import serial
 
 from device.detector import get_first_device
-from device.errors import DeviceReadError
-from device.protocol import (
-    DVIF_COMMAND,
-    LOKE_RESPONSE,
-    ODIN_COMMAND,
-    OdinDeviceInfo,
-    parse_dvif_response,
-)
+from device.errors import DeviceOdinError
+from device.protocol import DVIF_COMMAND, LOKE_RESPONSE, ODIN_COMMAND, OdinDeviceInfo, parse_dvif_response
 
 
 def is_odin_mode(
@@ -46,7 +40,7 @@ def is_odin_mode(
         True if device responds with LOKE, False otherwise
 
     Raises:
-        DeviceReadError: If serial communication fails
+        DeviceOdinError: If serial communication fails
     """
     try:
         with serial.Serial(
@@ -73,7 +67,7 @@ def is_odin_mode(
             return False
 
     except serial.SerialException as ex:
-        raise DeviceReadError(
+        raise DeviceOdinError(
             f"Serial communication error on {port_name}: {ex}. "
             "Verify device is in download mode and Samsung USB drivers are installed."
         ) from ex
@@ -106,7 +100,7 @@ def read_device_info(
         Device information from Odin protocol
 
     Raises:
-        DeviceReadError: If serial communication fails or device not in Odin mode
+        DeviceOdinError: If serial communication fails or device not in Odin mode
         ValueError: If response cannot be parsed
         DeviceNotFoundError: If auto-detection fails
     """
@@ -152,7 +146,7 @@ def read_device_info(
 
         if not response:
             port_desc = port_name if port_name else port.port
-            raise DeviceReadError(
+            raise DeviceOdinError(
                 f"No response from device on {port_desc}. "
                 "Ensure device is in download mode (Odin mode). "
                 "To enter download mode: Power off device, "
@@ -164,7 +158,7 @@ def read_device_info(
 
     except serial.SerialException as ex:
         port_desc = port_name if port_name else port.port
-        raise DeviceReadError(
+        raise DeviceOdinError(
             f"Serial communication error on {port_desc}: {ex}. "
             "Verify device is in download mode and Samsung USB drivers are installed."
         ) from ex

@@ -1,8 +1,7 @@
 """Lightweight serial command helper for Samsung devices.
 
 Provides a simple function to send a command over a serial port and return the
-response as text. If no port is provided, the first detected Samsung device in
-(download/Odin mode) is used via ``get_first_device``.
+response as text. If no port is provided, the first detected Samsung device is used via ``get_first_device``.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from typing import Optional
 import serial
 
 from device.detector import get_first_device
-from device.errors import DeviceNotFoundError, DeviceReadError
+from device.errors import DeviceError
 
 
 def send_serial_command(
@@ -41,7 +40,7 @@ def send_serial_command(
 
     Raises:
         DeviceNotFoundError: If no device is detected and ``port_name`` is None.
-        DeviceReadError: If communication fails or no response is received.
+        DeviceOdinError: If communication fails or no response is received.
     """
     target_port = port_name
     if target_port is None:
@@ -87,10 +86,8 @@ def send_serial_command(
 
             response = "".join(response_parts).strip()
             if not response:
-                raise DeviceReadError(f"No response received from device on {target_port}.")
+                raise DeviceError(f"No response received from device on {target_port}.")
             return response
 
-    except DeviceNotFoundError:
-        raise
     except serial.SerialException as ex:
-        raise DeviceReadError(f"Serial communication error on {target_port}: {ex}.") from ex
+        raise DeviceError(f"Serial communication error on {target_port}: {ex}.") from ex

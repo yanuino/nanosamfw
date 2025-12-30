@@ -14,7 +14,7 @@ SPDX-License-Identifier: MIT
 
 # pylint: disable=all  # Disable informational messages for this file due to draft code
 
-from device import DeviceNotFoundError, DeviceReadError, detect_download_mode_devices, read_device_info
+from device import DeviceNotFoundError, DeviceOdinError, detect_download_mode_devices, read_device_info
 
 
 def main():
@@ -108,7 +108,7 @@ def main():
         info = read_device_info(port_instance=port)
     except DeviceNotFoundError:
         print("ERROR: Device not found")
-    except DeviceReadError as ex:
+    except DeviceOdinError as ex:
         print(f"ERROR: Failed to read device info: {ex}")
     except ValueError as ex:
         print(f"ERROR: Failed to parse device response: {ex}")

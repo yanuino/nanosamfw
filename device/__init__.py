@@ -91,14 +91,9 @@ Copyright (c) 2024 nanosamfw contributors
 SPDX-License-Identifier: MIT
 """
 
-from device.detector import (
-    DetectedDevice,
-    detect_download_mode_devices,
-    detect_samsung_devices,
-    get_first_device,
-)
-from device.errors import DeviceError, DeviceNotFoundError, DeviceParseError, DeviceReadError
-from device.models import DeviceInfo
+from device.at_client import ATDeviceInfo, read_device_info_at, send_at_command
+from device.detector import DetectedDevice, detect_samsung_devices, get_first_device
+from device.errors import DeviceATError, DeviceError, DeviceNotFoundError, DeviceOdinError
 from device.protocol import (
     DVIF_COMMAND,
     LOKE_RESPONSE,
@@ -109,19 +104,17 @@ from device.protocol import (
     parse_dvif_response,
 )
 from device.reader import is_odin_mode, read_device_info
-from device.reader_at import ATDeviceInfo, read_device_info_at
 
 __all__ = [
     # Main functions - Odin protocol (download mode)
     "detect_samsung_devices",
-    "detect_download_mode_devices",
     "get_first_device",
     "read_device_info",  # Odin/DVIF protocol
     "is_odin_mode",
     # AT command functions (normal mode)
     "read_device_info_at",
+    "send_at_command",
     # Models
-    "DeviceInfo",  # AT command result / deprecated Odin model
     "OdinDeviceInfo",  # Odin protocol result
     "ATDeviceInfo",  # AT command result
     "DetectedDevice",
@@ -135,6 +128,6 @@ __all__ = [
     # Errors
     "DeviceError",
     "DeviceNotFoundError",
-    "DeviceReadError",
-    "DeviceParseError",
+    "DeviceATError",
+    "DeviceOdinError",
 ]

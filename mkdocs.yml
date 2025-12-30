@@ -92,7 +92,7 @@ nav:
     - Overview: api/device.md
     - Detector: api/device.detector.md
     - Reader: api/device.reader.md
-    - Models: api/device.models.md
+    - AT Client: api/device.at_client.md
     - Errors: api/device.errors.md
   - GUI Application:
     - Architecture: gui-architecture.md

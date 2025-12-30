@@ -10,22 +10,24 @@ class DeviceError(Exception):
 
 
 class DeviceNotFoundError(DeviceError):
-    """Raised when no Samsung devices are detected in MTP mode."""
+    """Raised when no Samsung devices are detected in MTP or download mode."""
 
 
-class DeviceReadError(DeviceError):
-    """Raised when device information cannot be read via AT commands.
+class DeviceATError(DeviceError):
+    """Raised for AT-channel communication failures with a device.
 
-    This can occur due to:
-    - Serial port communication failure
-    - Device busy (returns BUSY response)
-    - Malformed AT command response
+    Covers errors related to the AT commands path including:
+    - Serial port open/close failures
+    - Write errors when sending AT commands
+    - Read errors, timeouts, or empty responses
+    - Device busy states or unsupported AT command behavior
     - Permission/driver issues
     """
 
 
-class DeviceParseError(DeviceError):
-    """Raised when AT command response cannot be parsed.
+class DeviceOdinError(DeviceError):
+    """Raised for Odin (download mode) communication failures.
 
-    This indicates the device returned data but in an unexpected format.
+    Use for DVIF/ODIN commands and download-mode serial interactions when
+    devices are expected to be in Odin mode with RTS/CTS enabled.
     """

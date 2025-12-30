@@ -1,8 +1,7 @@
-"""Read device information via AT commands over serial port.
+"""AT client for Samsung devices over serial.
 
-This module communicates with Samsung devices using AT commands to retrieve
-firmware version, model, and device information. Works with devices in normal mode
-or recovery mode that respond to AT commands.
+Provides utilities to send AT commands and parse device information in
+normal/recovery modes. Use Odin protocol for download mode devices.
 
 Copyright (c) 2024 nanosamfw contributors
 SPDX-License-Identifier: MIT
@@ -15,7 +14,7 @@ from typing import Optional
 import serial
 
 from device.detector import get_first_device
-from device.errors import DeviceReadError
+from device.errors import DeviceATError
 
 
 @dataclass(frozen=True)
@@ -44,6 +43,87 @@ class ATDeviceInfo:
     cc: str = ""
 
 
+def send_at_command(
+    command: str,
+    port_name: Optional[str] = None,
+    *,
+    timeout: float = 2.0,
+    encoding: str = "utf-8",
+    expect_ok: bool = True,
+) -> str:
+    """Send an AT command and return the raw response as text.
+
+    Adds CRLF automatically, handles serial write/read errors, and optionally
+    validates presence of "OK" in the response.
+
+    Args:
+        command: The AT command to send (e.g., "AT+DEVCONINFO"). CRLF is appended automatically.
+        port_name: Serial port name. If None, auto-detects the first Samsung device port.
+        timeout: Read/write timeout in seconds.
+        encoding: Text encoding for decoding the response.
+        expect_ok: If True, raises error when "OK" is not present in the response.
+
+    Returns:
+        Raw textual response received from the device.
+
+    Raises:
+        DeviceATError: On serial open/write/read failures, timeouts, or missing OK when expected.
+    """
+    # Auto-detect device if port not specified
+    target_port = port_name
+    if target_port is None:
+        device = get_first_device()
+        target_port = device.port_name
+
+    try:
+        cmd_bytes = command.encode(encoding)
+        if not cmd_bytes.endswith(b"\r\n"):
+            cmd_bytes += b"\r\n"
+
+        with serial.Serial(
+            port=target_port,
+            baudrate=115200,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=timeout,
+            write_timeout=timeout,
+        ) as port:
+            # Clear buffers
+            port.reset_input_buffer()
+            port.reset_output_buffer()
+
+            # Write command
+            try:
+                port.write(cmd_bytes)
+                port.flush()
+            except serial.SerialTimeoutException as ex:
+                raise DeviceATError(f"Write timeout on {target_port}: {ex}.") from ex
+
+            # Read until timeout
+            response_parts: list[str] = []
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                waiting = port.in_waiting
+                if waiting:
+                    chunk = port.read(waiting)
+                    response_parts.append(chunk.decode(encoding, errors="replace"))
+                else:
+                    time.sleep(0.05)
+
+            response = "".join(response_parts).strip()
+            if not response:
+                raise DeviceATError(f"No AT response from device on {target_port}.")
+            if expect_ok and "OK" not in response:
+                raise DeviceATError(f"AT command did not return OK on {target_port}. Response: {response[:200]}")
+            return response
+
+    except serial.SerialException as ex:
+        raise DeviceATError(
+            f"Serial communication error on {target_port}: {ex}. Verify device is connected and drivers are installed."
+        ) from ex
+
+
 def read_device_info_at(
     port_name: Optional[str] = None,
     *,
@@ -55,59 +135,17 @@ def read_device_info_at(
 
     Args:
         port_name: Serial port name (e.g., "COM3" on Windows, "/dev/ttyACM0" on Linux).
-            If None, auto-detects first device.
         timeout: Read timeout in seconds
 
     Returns:
         Device information from AT command response
 
     Raises:
-        DeviceReadError: If serial communication fails or AT command returns no data
+        DeviceATError: If serial communication fails or AT command returns no data
         DeviceNotFoundError: If auto-detection fails
     """
-    # Auto-detect device if port not specified
-    if port_name is None:
-        device = get_first_device()
-        port_name = device.port_name
-
-    try:
-        with serial.Serial(
-            port=port_name,
-            baudrate=115200,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            timeout=timeout,
-        ) as port:
-            # Clear buffers
-            port.reset_input_buffer()
-            port.reset_output_buffer()
-
-            # Send AT command to get device info
-            command = b"AT+DEVCONINFO\r\n"
-            port.write(command)
-            time.sleep(0.3)  # Wait for response
-
-            # Read response
-            response = ""
-            while port.in_waiting > 0:
-                chunk = port.read(port.in_waiting)
-                response += chunk.decode("utf-8", errors="replace")
-                time.sleep(0.1)
-
-            if not response or "OK" not in response:
-                raise DeviceReadError(
-                    f"No valid AT response from device on {port_name}. "
-                    "Device may not support AT commands or is in wrong mode."
-                )
-
-            # Parse response
-            return _parse_at_response(response, port_name)
-
-    except serial.SerialException as ex:
-        raise DeviceReadError(
-            f"Serial communication error on {port_name}: {ex}. " "Verify device is connected and drivers are installed."
-        ) from ex
+    response = send_at_command("AT+DEVCONINFO", port_name=port_name, timeout=timeout)
+    return _parse_at_response(response, port_name or "(auto)")
 
 
 def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
@@ -124,7 +162,7 @@ def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
         Parsed device information
 
     Raises:
-        DeviceReadError: If response format is invalid
+        DeviceATError: If response format is invalid
     """
     # Look for +DEVCONINFO line
     for line in response.split("\n"):
@@ -178,4 +216,4 @@ def _parse_at_response(response: str, port_name: str) -> ATDeviceInfo:
                     cc=cc,
                 )
 
-    raise DeviceReadError(f"Failed to parse AT response from {port_name}. " f"Response: {response[:200]}")
+    raise DeviceATError(f"Failed to parse AT response from {port_name}. Response: {response[:200]}")
