@@ -1,3 +1,0 @@
-# Device Reader
-
-::: device.reader

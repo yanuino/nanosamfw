@@ -94,16 +94,17 @@ SPDX-License-Identifier: MIT
 from device.at_client import ATDeviceInfo, read_device_info_at, send_at_command
 from device.detector import DetectedDevice, detect_samsung_devices, get_first_device
 from device.errors import DeviceATError, DeviceError, DeviceNotFoundError, DeviceOdinError
-from device.protocol import (
+from device.odin_client import (
     DVIF_COMMAND,
     LOKE_RESPONSE,
     ODIN_COMMAND,
     OdinCommand,
     OdinDeviceInfo,
     get_variant,
+    is_odin_mode,
     parse_dvif_response,
+    read_device_info,
 )
-from device.reader import is_odin_mode, read_device_info
 
 __all__ = [
     # Main functions - Odin protocol (download mode)

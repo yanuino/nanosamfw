@@ -14,7 +14,7 @@ SPDX-License-Identifier: MIT
 
 # pylint: disable=all  # Disable informational messages for this file due to draft code
 
-from device import DeviceNotFoundError, DeviceOdinError, detect_download_mode_devices, read_device_info
+from device import DeviceNotFoundError, DeviceOdinError, detect_samsung_devices, read_device_info
 
 
 def main():
@@ -35,7 +35,7 @@ def main():
     # Step 1: Detect devices
     print("\n[1] Detecting Samsung devices in download mode...")
     try:
-        devices = detect_download_mode_devices()
+        devices = detect_samsung_devices()
     except (OSError, IOError) as ex:
         print(f"ERROR: Failed to enumerate devices: {ex}")
         return
@@ -83,7 +83,7 @@ def main():
         print("\n[3] Verifying Odin mode...")
         import time
 
-        from device.protocol import LOKE_RESPONSE, ODIN_COMMAND
+        from device.odin_client import LOKE_RESPONSE, ODIN_COMMAND
 
         port.reset_input_buffer()
         port.write(ODIN_COMMAND)
