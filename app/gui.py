@@ -242,6 +242,7 @@ class FirmwareDownloaderApp(ctk.CTk):
             disconnect_callback=disconnect_callback,
             csc_filter=csc_filter_list,
             unzip_home_csc=self.config.unzip_home_csc,
+            autofus_checkbox=self.widgets.get("autofus_checkbox"),
         )
 
         # Set initial placeholders

@@ -13,8 +13,8 @@ import zipfile
 from pathlib import Path
 from typing import Callable
 
-from device import DeviceNotFoundError, read_device_info_at
-from device.errors import DeviceError
+from device import DeviceNotFoundError, enter_odin_mode, read_device_info_at
+from device.errors import DeviceATError, DeviceError
 from download import check_and_prepare_firmware, download_and_decrypt
 from fus.errors import FOTAModelOrRegionNotFound, FOTANoFirmware, InformError
 
@@ -47,6 +47,7 @@ class DeviceMonitor:
         disconnect_callback: Callable[[], None] | None = None,
         csc_filter: list[str] | None = None,
         unzip_home_csc: bool = True,
+        autofus_checkbox=None,
     ):
         """Initialize device monitor.
 
@@ -58,6 +59,8 @@ class DeviceMonitor:
             csc_filter: Optional list of allowed CSC codes (case-insensitive).
                 Empty list = accept all devices. Non-empty = only accept listed CSCs.
             unzip_home_csc: Whether to extract HOME_CSC files when unzipping firmware.
+            autofus_checkbox: Optional reference to the Auto FUS Mode checkbox widget.
+                If provided, its current state is checked at runtime for entering download mode.
         """
         self.ui_updater = ui_updater
         self.progress_callback = progress_callback
@@ -65,6 +68,7 @@ class DeviceMonitor:
         self.disconnect_callback = disconnect_callback
         self.csc_filter: set[str] = {c.strip().upper() for c in csc_filter} if csc_filter else set()
         self.unzip_home_csc = unzip_home_csc
+        self.autofus_checkbox = autofus_checkbox
         self.logger = logging.getLogger(__name__)
         self.monitoring = False
         self.download_in_progress = False
@@ -325,6 +329,7 @@ class DeviceMonitor:
         """Extract firmware ZIP file and populate component entries.
 
         Optionally skips HOME_CSC files based on unzip_home_csc setting.
+        If Auto FUS Mode checkbox is checked, enters download mode after extraction.
 
         Args:
             decrypted_path: Path to decrypted firmware file.
@@ -356,6 +361,10 @@ class DeviceMonitor:
 
                 self.logger.info("Extracted firmware to %s", unzip_dir)
                 self.ui_updater.populate_component_entries(unzip_dir)
+
+                # Check if Auto FUS Mode checkbox is currently checked
+                if self.autofus_checkbox and self.autofus_checkbox.get():
+                    self._enter_download_mode_auto()
 
         except zipfile.BadZipFile:
             self.logger.error("File is not a valid ZIP archive")
@@ -404,3 +413,43 @@ class DeviceMonitor:
         self.ui_updater.update_progress_message(msg, color)
         self.download_in_progress = False
         self.ui_updater.update_stop_button_state(self.download_in_progress, False)
+
+    def _enter_download_mode_auto(self) -> None:
+        """Automatically enter download mode after firmware extraction.
+
+        Sends AT+FUS? command and waits for device to appear in Odin mode.
+        Updates UI with progress messages during the transition.
+        """
+        try:
+            self.ui_updater.update_status("Device connected - Entering download mode")
+            self.ui_updater.update_progress_message("Sending download mode command...", "info")
+
+            def progress_cb(msg: str):
+                self.logger.info("Auto FUS Mode: %s", msg)
+                self.ui_updater.update_progress_message(msg, "info")
+
+            # Attempt to enter Odin mode (auto-detects device)
+            success = enter_odin_mode(wait_timeout=30.0, progress_callback=progress_cb)
+
+            if success:
+                msg = "Device successfully entered download mode! Ready for flashing"
+                self.logger.info(msg)
+                self.ui_updater.update_status("Device in download mode")
+                self.ui_updater.update_progress_message(msg, "success")
+            else:
+                msg = "Timeout waiting for download mode. Device may not support AT+FUS? command"
+                self.logger.warning(msg)
+                self.ui_updater.update_status("Device connected")
+                self.ui_updater.update_progress_message(msg, "warning")
+
+        except DeviceATError as ex:
+            msg = f"Error entering download mode: {ex}"
+            self.logger.error(msg)
+            self.ui_updater.update_status("Device connected - Download mode error")
+            self.ui_updater.update_progress_message(msg, "error")
+
+        except (OSError, IOError, ValueError, RuntimeError) as ex:
+            msg = f"Unexpected error during download mode transition: {ex}"
+            self.logger.error(msg)
+            self.ui_updater.update_status("Device connected - Error")
+            self.ui_updater.update_progress_message("Waiting for device", "info")

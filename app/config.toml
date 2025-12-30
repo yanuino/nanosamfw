@@ -1,6 +1,6 @@
 [gui]
 btn_dryrun = false  # If true, the GUI will show the "Dry run" checkbox.
-btn_autofus = false  # If true, the GUI will show the "Auto FUS Mode" checkbox.
+btn_autofus = true  # If true, the GUI will show the "Auto FUS Mode" checkbox.
 
 [devices]
 auto_fusmode = false # If true, the application will automatically enter the device into FUS mode when needed.

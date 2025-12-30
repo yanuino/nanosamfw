@@ -92,6 +92,7 @@ def main():
         bytes_waiting = port.in_waiting
         if bytes_waiting > 0:
             response = port.read(bytes_waiting)
+            print(f"Raw response: {response}")
             if LOKE_RESPONSE in response:
                 print("✓ Device is in Odin mode (LOKE response received)")
             else:
@@ -156,5 +157,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
     main()

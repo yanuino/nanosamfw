@@ -124,6 +124,71 @@ def send_at_command(
         ) from ex
 
 
+def enter_download_mode(
+    port_name: Optional[str] = None,
+    *,
+    timeout: float = 1.0,
+) -> None:
+    """Put Samsung device into download mode (Odin mode) using AT command.
+
+    Sends AT+FUS? command which immediately reboots the device into download mode
+    and disconnects the serial connection. No response is expected.
+
+    After calling this function, wait a few seconds for the device to reboot,
+    then use device.odin_client functions to communicate with it.
+
+    Args:
+        port_name: Serial port name (e.g., "COM3" on Windows, "/dev/ttyACM0" on Linux).
+            If None, auto-detects the first Samsung device port.
+        timeout: Write timeout in seconds (default: 1.0)
+
+    Raises:
+        DeviceATError: If serial communication fails
+        DeviceNotFoundError: If auto-detection fails
+
+    Example:
+        >>> from device import enter_download_mode, read_device_info
+        >>> enter_download_mode("COM3")
+        >>> time.sleep(3)  # Wait for reboot
+        >>> info = read_device_info("COM3")  # Now use Odin protocol
+    """
+    # Auto-detect device if port not specified
+    target_port = port_name
+    if target_port is None:
+        device = get_first_device()
+        target_port = device.port_name
+
+    try:
+        cmd_bytes = b"AT+FUS?\r\n"
+
+        with serial.Serial(
+            port=target_port,
+            baudrate=115200,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=timeout,
+            write_timeout=timeout,
+        ) as port:
+            # Clear buffers
+            port.reset_input_buffer()
+            port.reset_output_buffer()
+
+            # Write command - device will immediately disconnect
+            try:
+                port.write(cmd_bytes)
+                port.flush()
+            except serial.SerialTimeoutException as ex:
+                raise DeviceATError(f"Write timeout on {target_port}: {ex}.") from ex
+
+            # Device reboots immediately, no response expected
+
+    except serial.SerialException as ex:
+        raise DeviceATError(
+            f"Serial communication error on {target_port}: {ex}. Verify device is connected and drivers are installed."
+        ) from ex
+
+
 def read_device_info_at(
     port_name: Optional[str] = None,
     *,
