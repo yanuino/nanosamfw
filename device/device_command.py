@@ -70,6 +70,8 @@ def enter_odin_mode(
         raise
 
     # Step 2: Wait for device to reboot and appear in Odin mode
+    time.sleep(10.0)  # Initial wait before checking
+
     _log("Waiting for device to reboot...")
     start_time = time.monotonic()
     deadline = start_time + wait_timeout
@@ -85,6 +87,8 @@ def enter_odin_mode(
             # Communication error - device might still be rebooting
             # Continue checking until timeout
             pass
+
+        time.sleep(check_interval)
 
     # Timeout reached
     elapsed = time.monotonic() - start_time
