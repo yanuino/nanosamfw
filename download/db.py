@@ -14,7 +14,7 @@ import sqlite3
 from pathlib import Path
 
 from .config import PATHS
-from .sql import FIRMWARE_SCHEMA, IMEI_LOG_SCHEMA
+from .sql import COMPONENT_SCHEMA, FIRMWARE_SCHEMA, IMEI_LOG_SCHEMA
 
 
 # --- Accès chemins --- #
@@ -68,7 +68,7 @@ def _apply_pragmas(conn: sqlite3.Connection) -> None:
     cur.close()
 
 
-SCHEMA_SQL = FIRMWARE_SCHEMA + "\n\n" + IMEI_LOG_SCHEMA
+SCHEMA_SQL = FIRMWARE_SCHEMA + "\n\n" + IMEI_LOG_SCHEMA + "\n\n" + COMPONENT_SCHEMA
 
 
 def init_db() -> None:

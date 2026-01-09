@@ -96,3 +96,27 @@ ON imei_log (created_at);
 CREATE INDEX IF NOT EXISTS idx_imei_log__upgrade_at
 ON imei_log (upgrade_at);
 """
+
+COMPONENT_SCHEMA = """
+-- Component files extracted from firmware
+CREATE TABLE IF NOT EXISTS component (
+  id                INTEGER PRIMARY KEY,
+  version_code      TEXT NOT NULL,
+  filename          TEXT NOT NULL,
+  size_bytes        INTEGER NOT NULL,
+  md5sum            TEXT NOT NULL,
+  created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  
+  FOREIGN KEY (version_code) REFERENCES firmware(version_code) ON DELETE CASCADE,
+  UNIQUE(version_code, filename)
+);
+
+CREATE INDEX IF NOT EXISTS idx_component_version
+ON component(version_code);
+
+CREATE INDEX IF NOT EXISTS idx_component_filename
+ON component(filename);
+
+CREATE INDEX IF NOT EXISTS idx_component_md5sum
+ON component(md5sum);
+"""

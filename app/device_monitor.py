@@ -324,15 +324,17 @@ class DeviceMonitor:
         except InformError.BadStatus as ex:
             self._handle_fus_error(ex)
 
-    def _extract_firmware(self, decrypted_path: Path, version: str) -> None:  # pylint: disable=unused-argument
-        """Extract firmware ZIP file and populate component entries.
+    def _extract_firmware(self, decrypted_path: Path, version: str) -> None:
+        """Extract firmware ZIP file, compute checksums, and clean up files.
 
-        Uses the download service to extract the firmware file.
+        Uses the download service to extract the firmware file, compute MD5
+        checksums for components, and automatically clean up encrypted and
+        decrypted files after successful extraction.
         If Auto FUS Mode checkbox is checked, enters download mode after extraction.
 
         Args:
             decrypted_path: Path to decrypted firmware file.
-            version: Firmware version string.
+            version: Firmware version string (version_code).
         """
         try:
             if decrypted_path.exists() and decrypted_path.suffix.lower() in [".zip"]:
@@ -340,7 +342,9 @@ class DeviceMonitor:
 
                 unzip_dir = extract_firmware(
                     decrypted_path,
+                    version_code=version,
                     skip_home_csc=not self.unzip_home_csc,
+                    cleanup_after=True,  # Clean up encrypted and decrypted files
                     progress_cb=self.progress_callback,
                     stop_check=self.stop_check,
                 )

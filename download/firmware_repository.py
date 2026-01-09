@@ -9,6 +9,7 @@ in the repository database using the repository pattern.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
@@ -63,6 +64,55 @@ class FirmwareRecord:
             Path: Absolute path to decrypted file (without .enc4 extension).
         """
         return PATHS.decrypted_dir / self.filename.replace('.enc4', '')
+
+    @property
+    def extracted_dir_path(self) -> Path:
+        """Get the extracted directory path.
+
+        Returns:
+            Path: Absolute path to extracted directory (decrypted filename without extension).
+        """
+        decrypted = self.filename.replace('.enc4', '')
+        return PATHS.decrypted_dir / Path(decrypted).stem
+
+
+@dataclass
+class ComponentRecord:
+    """Component file record.
+
+    Represents an extracted firmware component file with checksum verification.
+
+    Attributes:
+        version_code: Firmware version identifier (links to firmware table).
+        filename: Component filename (e.g., AP, BL, CP, CSC).
+        size_bytes: File size in bytes.
+        md5sum: MD5 checksum of the component file.
+    """
+
+    version_code: str
+    filename: str
+    size_bytes: int
+    md5sum: str
+
+
+def compute_md5(file_path: Path, buffer_size: int = 65536) -> str:
+    """Compute MD5 checksum of a file.
+
+    Args:
+        file_path: Path to file to checksum.
+        buffer_size: Read buffer size in bytes (default 64KB).
+
+    Returns:
+        str: Hexadecimal MD5 checksum string.
+
+    Raises:
+        OSError: If file cannot be read.
+    """
+    md5 = hashlib.md5()
+    with open(file_path, 'rb') as f:
+        while chunk := f.read(buffer_size):
+            md5.update(chunk)
+    return md5.hexdigest()
 
 
 def upsert_firmware(rec: FirmwareRecord) -> None:
@@ -237,6 +287,77 @@ def delete_firmware(version_code: str) -> None:
         version_code: Firmware version identifier to delete.
     """
     sql = "DELETE FROM firmware WHERE version_code=?;"
+    with connect() as conn:
+        conn.execute("BEGIN;")
+        try:
+            conn.execute(sql, (version_code,))
+            conn.execute("COMMIT;")
+        except Exception:
+            conn.execute("ROLLBACK;")
+            raise
+
+
+def upsert_component(comp: ComponentRecord) -> None:
+    """Insert or update a component record.
+
+    Creates a new component record or updates an existing one if a record with
+    the same version_code and filename already exists.
+
+    Args:
+        comp: Component record to insert or update.
+
+    Raises:
+        Exception: If the database operation fails.
+    """
+    sql = """
+    INSERT INTO component (version_code, filename, size_bytes, md5sum)
+    VALUES (:version_code, :filename, :size_bytes, :md5sum)
+    ON CONFLICT(version_code, filename) DO UPDATE SET
+        size_bytes=excluded.size_bytes,
+        md5sum=excluded.md5sum;
+    """
+    with connect() as conn:
+        conn.execute("BEGIN;")
+        try:
+            conn.execute(sql, comp.__dict__)
+            conn.execute("COMMIT;")
+        except Exception:
+            conn.execute("ROLLBACK;")
+            raise
+
+
+def list_components(version_code: str) -> Iterable[ComponentRecord]:
+    """List all component records for a firmware version.
+
+    Args:
+        version_code: Firmware version identifier.
+
+    Yields:
+        ComponentRecord: Each component file for the firmware.
+    """
+    sql = """
+    SELECT version_code, filename, size_bytes, md5sum
+    FROM component
+    WHERE version_code=?
+    ORDER BY filename;
+    """
+    with connect() as conn:
+        for row in conn.execute(sql, (version_code,)):
+            yield ComponentRecord(
+                version_code=row[0],
+                filename=row[1],
+                size_bytes=row[2],
+                md5sum=row[3],
+            )
+
+
+def delete_components(version_code: str) -> None:
+    """Delete all component records for a firmware version.
+
+    Args:
+        version_code: Firmware version identifier.
+    """
+    sql = "DELETE FROM component WHERE version_code=?;"
     with connect() as conn:
         conn.execute("BEGIN;")
         try:

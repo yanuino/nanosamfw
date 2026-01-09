@@ -24,11 +24,14 @@ from fus.responses import parse_inform
 
 from .config import PATHS
 from .firmware_repository import (
+    ComponentRecord,
     FirmwareRecord,
+    compute_md5,
     delete_firmware,
     find_firmware,
     list_firmware,
     update_firmware_status,
+    upsert_component,
     upsert_firmware,
 )
 from .imei_repository import upsert_imei_event
@@ -61,17 +64,25 @@ def check_and_prepare_firmware(
 
     Always queries Samsung FOTA for latest version. Logs to imei_log with
     status_fus="unknown" (no FUS query yet). Then checks firmware table
-    to see if that version is already downloaded.
+    to see if that version has been downloaded (downloaded flag = 1).
+
+    The is_cached return value indicates whether the firmware needs to be
+    downloaded. Even if the encrypted file was deleted (e.g., via cleanup_after),
+    the status flag persists in the database, preventing unnecessary re-downloads.
 
     Args:
         model: Device model identifier (e.g., SM-G998B).
         csc: Country Specific Code.
         device_id: Device IMEI or serial number.
         current_firmware: Current device firmware version (for logging/comparison).
+        serial_number: Optional device serial number (for IMEI log).
+        lock_status: Optional device lock status (for IMEI log).
+        aid: Optional device AID (for IMEI log).
+        cc: Optional device country code (for IMEI log).
 
     Returns:
         (latest_version, is_cached): Latest version from FOTA and whether
-            it exists in local repository.
+            it has been downloaded (True) or needs download (False).
 
     Raises:
         FOTAError: If FOTA query fails.
@@ -82,6 +93,8 @@ def check_and_prepare_firmware(
         )
         if cached:
             print(f"Version {latest} already downloaded")
+        else:
+            print(f"Version {latest} needs download")
     """
     # 1. Log device detection with current firmware (status_fus="unknown")
     upsert_imei_event(
@@ -117,9 +130,12 @@ def check_and_prepare_firmware(
         status_upgrade="unknown",  # Firmware flashing not implemented
     )
 
-    # 3. Check if this specific version exists in repository
+    # 3. Check if this specific version exists in repository and has been processed
     cached = find_firmware(version_norm)
-    is_cached = cached is not None and cached.encrypted_file_path.exists()
+    # Firmware is considered cached if it exists in repository AND has been downloaded
+    # (The encrypted file may have been deleted via cleanup_after, so we check the
+    # downloaded flag instead of file existence)
+    is_cached = cached is not None and cached.downloaded == 1
 
     return version_norm, is_cached
 
@@ -464,20 +480,28 @@ def cleanup_repository(
 
 def extract_firmware(
     decrypted_path: Path,
+    version_code: Optional[str] = None,
     skip_home_csc: bool = False,
+    cleanup_after: bool = False,
     progress_cb: Optional[Callable[[str, int, int], None]] = None,
     stop_check: Optional[Callable[[], bool]] = None,
 ) -> Path:
-    """Extract decrypted firmware ZIP file to directory.
+    """Extract decrypted firmware ZIP file and compute component checksums.
 
     Extracts the firmware ZIP file to a directory with the same name as the file
-    (without extension). Optionally filters out HOME_CSC files during extraction.
+    (without extension). Computes MD5 checksums for all extracted components and
+    stores them in the database. Optionally filters out HOME_CSC files during
+    extraction and cleans up encrypted/decrypted files after successful extraction.
 
     Args:
         decrypted_path: Path to decrypted firmware ZIP file.
+        version_code: Firmware version code for component tracking. If provided,
+            components are stored in database and firmware extracted flag is set.
         skip_home_csc: If True, skip extracting files starting with "HOME_CSC_".
+        cleanup_after: If True, delete encrypted and decrypted files after successful
+            extraction and checksum computation.
         progress_cb: Optional callback invoked as progress_cb(stage, done, total)
-            where stage is "extract".
+            where stage is "extract" or "checksum".
         stop_check: Optional function returning True if extraction should stop.
 
     Returns:
@@ -497,6 +521,7 @@ def extract_firmware(
         unzip_dir = decrypted_path.parent / decrypted_path.stem
         unzip_dir.mkdir(parents=True, exist_ok=True)
 
+        # Extract files
         with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
             members = zip_ref.namelist()
 
@@ -512,6 +537,48 @@ def extract_firmware(
                 zip_ref.extract(member, unzip_dir)
                 if progress_cb:
                     progress_cb("extract", idx, total_files)
+
+        # Compute MD5 checksums for components (only top-level files)
+        component_files = [f for f in unzip_dir.iterdir() if f.is_file()]
+        total_components = len(component_files)
+
+        for idx, component_file in enumerate(component_files, 1):
+            if stop_check and stop_check():
+                raise RuntimeError("Checksum computation stopped by user")
+
+            md5sum = compute_md5(component_file)
+            size_bytes = component_file.stat().st_size
+
+            # Store component in database if version_code provided
+            if version_code:
+                comp = ComponentRecord(
+                    version_code=version_code,
+                    filename=component_file.name,
+                    size_bytes=size_bytes,
+                    md5sum=md5sum,
+                )
+                upsert_component(comp)
+
+            if progress_cb:
+                progress_cb("checksum", idx, total_components)
+
+        # Update firmware extracted status
+        if version_code:
+            update_firmware_status(version_code, extracted=1)
+
+        # Cleanup encrypted and decrypted files if requested
+        if cleanup_after:
+            # Find encrypted file path
+            if version_code:
+                firmware = find_firmware(version_code)
+                if firmware:
+                    enc_path = firmware.encrypted_file_path
+                    if enc_path.exists():
+                        enc_path.unlink()
+
+            # Delete decrypted file
+            if decrypted_path.exists():
+                decrypted_path.unlink()
 
         return unzip_dir
 
