@@ -27,7 +27,7 @@ from .firmware_repository import (
     delete_firmware,
     find_firmware,
     list_firmware,
-    update_decrypted_path,
+    update_firmware_status,
     upsert_firmware,
 )
 from .imei_repository import upsert_imei_event
@@ -118,7 +118,7 @@ def check_and_prepare_firmware(
 
     # 3. Check if this specific version exists in repository
     cached = find_firmware(version_norm)
-    is_cached = cached is not None and Path(cached.encrypted_file_path).exists()
+    is_cached = cached is not None and cached.encrypted_file_path.exists()
 
     return version_norm, is_cached
 
@@ -166,7 +166,7 @@ def get_or_download_firmware(
     """
     # Check if already in repository
     existing = find_firmware(version_code)
-    if existing and Path(existing.encrypted_file_path).exists():
+    if existing and existing.encrypted_file_path.exists():
         return existing
 
     # Download from FUS
@@ -219,8 +219,9 @@ def get_or_download_firmware(
         size_bytes=info.size_bytes,
         logic_value_factory=info.logic_value_factory,
         latest_fw_version=info.latest_fw_version,
-        encrypted_file_path=str(enc_path.resolve()),
-        decrypted_file_path=None,
+        downloaded=1,  # Successfully downloaded
+        decrypted=0,
+        extracted=0,
     )
     upsert_firmware(rec)
 
@@ -264,7 +265,7 @@ def decrypt_firmware(
     if not firmware:
         raise ValueError(f"Firmware {version_code} not found in repository")
 
-    enc_path = Path(firmware.encrypted_file_path)
+    enc_path = firmware.encrypted_file_path
     if not enc_path.exists():
         raise FileNotFoundError(f"Encrypted file not found: {enc_path}")
 
@@ -289,8 +290,8 @@ def decrypt_firmware(
         stop_check=stop_check,
     )
 
-    # Update repository with decrypted path
-    update_decrypted_path(version_code, str(dec_path.resolve()))
+    # Update repository with decrypted status
+    update_firmware_status(version_code, decrypted=1)
 
     return str(dec_path.resolve())
 
@@ -432,7 +433,7 @@ def cleanup_repository(
     total = len(records)
     for idx, rec in enumerate(records, start=1):
         stats["total_records"] += 1
-        enc_path = Path(rec.encrypted_file_path)
+        enc_path = rec.encrypted_file_path
         if not enc_path.is_file():
             stats["missing_encrypted"] += 1
             # remove decrypted file if exists

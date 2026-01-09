@@ -13,8 +13,9 @@ CREATE TABLE IF NOT EXISTS firmware (
   size_bytes            INTEGER NOT NULL,
   logic_value_factory   TEXT NOT NULL,
   latest_fw_version     TEXT NOT NULL,
-  encrypted_file_path   TEXT NOT NULL,
-  decrypted_file_path   TEXT,
+  downloaded            INTEGER NOT NULL DEFAULT 0 CHECK (downloaded IN (0, 1)),
+  decrypted             INTEGER NOT NULL DEFAULT 0 CHECK (decrypted IN (0, 1)),
+  extracted             INTEGER NOT NULL DEFAULT 0 CHECK (extracted IN (0, 1)),
   created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   

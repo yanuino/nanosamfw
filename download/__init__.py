@@ -42,7 +42,6 @@ Example:
         print(f"Latest: {version}, Already downloaded: {is_cached}")
 
     Download firmware to repository::
-
         from download import get_or_download_firmware
 
         firmware = get_or_download_firmware(
@@ -102,13 +101,7 @@ Configuration:
 """
 
 from .db import get_db_path, init_db, is_healthy, repair_db
-from .firmware_repository import (
-    FirmwareRecord,
-    delete_firmware,
-    find_firmware,
-    list_firmware,
-    update_decrypted_path,
-)
+from .firmware_repository import FirmwareRecord, delete_firmware, find_firmware, list_firmware, update_firmware_status
 from .service import (
     check_and_prepare_firmware,
     cleanup_repository,

@@ -19,7 +19,7 @@ All timestamps are in ISO 8601 format (UTC). Triggers automatically maintain `up
 
 ### firmware
 
-Firmware repository storing one record per firmware version with all metadata from Samsung FUS servers.
+Firmware repository storing one record per firmware version with all metadata from Samsung FUS servers and download/processing status.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -30,14 +30,19 @@ Firmware repository storing one record per firmware version with all metadata fr
 | `size_bytes` | INTEGER | NOT NULL | File size in bytes |
 | `logic_value_factory` | TEXT | NOT NULL | Logic value for ENC4 decryption key derivation |
 | `latest_fw_version` | TEXT | NOT NULL | Latest firmware version from inform response |
-| `encrypted_file_path` | TEXT | NOT NULL | Absolute path to encrypted (.enc4) file on disk |
-| `decrypted_file_path` | TEXT | - | Absolute path to decrypted file, or NULL if not decrypted |
+| `downloaded` | INTEGER | NOT NULL, DEFAULT 0, CHECK (0 or 1) | Whether encrypted file has been successfully downloaded |
+| `decrypted` | INTEGER | NOT NULL, DEFAULT 0, CHECK (0 or 1) | Whether firmware has been successfully decrypted |
+| `extracted` | INTEGER | NOT NULL, DEFAULT 0, CHECK (0 or 1) | Whether firmware components have been extracted |
 | `created_at` | TEXT | NOT NULL, DEFAULT (now) | ISO 8601 timestamp of creation |
 | `updated_at` | TEXT | NOT NULL, DEFAULT (now) | ISO 8601 timestamp of last update |
 
 **Unique Constraint:** `version_code` (one record per firmware version)
 
 **Check Constraint:** `version_code` must have exactly 3 slashes (4-part format)
+
+**Notes:** 
+- The encrypted file path is computed from the `filename` and the configured `PATHS.firmware_dir` at runtime (see `FirmwareRecord.encrypted_file_path` property).
+- The decrypted file path is computed from the `filename` and the configured `PATHS.decrypted_dir` at runtime (see `FirmwareRecord.decrypted_file_path` property).
 
 #### Indexes
 

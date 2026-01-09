@@ -10,8 +10,10 @@ in the repository database using the repository pattern.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, Optional
 
+from .config import PATHS
 from .db import connect
 
 
@@ -20,7 +22,7 @@ class FirmwareRecord:
     """Firmware repository record.
 
     Represents a firmware entry with all metadata from FUS inform response
-    and local file paths.
+    and download/decryption status.
 
     Attributes:
         version_code: Firmware version identifier (format: AAA/BBB/CCC/DDD).
@@ -29,8 +31,9 @@ class FirmwareRecord:
         size_bytes: File size in bytes.
         logic_value_factory: Logic value for ENC4 decryption key derivation.
         latest_fw_version: Latest firmware version from inform response.
-        encrypted_file_path: Absolute path to encrypted (.enc4) file on disk.
-        decrypted_file_path: Absolute path to decrypted file, or None if not decrypted.
+        downloaded: Whether the encrypted file has been successfully downloaded.
+        decrypted: Whether the firmware has been successfully decrypted.
+        extracted: Whether the firmware has been successfully extracted.
     """
 
     version_code: str
@@ -39,8 +42,27 @@ class FirmwareRecord:
     size_bytes: int
     logic_value_factory: str
     latest_fw_version: str
-    encrypted_file_path: str
-    decrypted_file_path: str | None
+    downloaded: int  # 0 or 1 (SQLite boolean)
+    decrypted: int  # 0 or 1 (SQLite boolean)
+    extracted: int  # 0 or 1 (SQLite boolean)
+
+    @property
+    def encrypted_file_path(self) -> Path:
+        """Get the encrypted file path constructed from filename and data directory.
+
+        Returns:
+            Path: Absolute path to encrypted (.enc4) file.
+        """
+        return PATHS.firmware_dir / self.filename
+
+    @property
+    def decrypted_file_path(self) -> Path:
+        """Get the decrypted file path constructed from filename and data directory.
+
+        Returns:
+            Path: Absolute path to decrypted file (without .enc4 extension).
+        """
+        return PATHS.decrypted_dir / self.filename.replace('.enc4', '')
 
 
 def upsert_firmware(rec: FirmwareRecord) -> None:
@@ -60,18 +82,19 @@ def upsert_firmware(rec: FirmwareRecord) -> None:
     sql = """
     INSERT INTO firmware (version_code, filename, path, size_bytes,
                           logic_value_factory, latest_fw_version,
-                          encrypted_file_path, decrypted_file_path)
+                          downloaded, decrypted, extracted)
     VALUES (:version_code, :filename, :path, :size_bytes,
             :logic_value_factory, :latest_fw_version,
-            :encrypted_file_path, :decrypted_file_path)
+            :downloaded, :decrypted, :extracted)
     ON CONFLICT(version_code) DO UPDATE SET
         filename=excluded.filename,
         path=excluded.path,
         size_bytes=excluded.size_bytes,
         logic_value_factory=excluded.logic_value_factory,
         latest_fw_version=excluded.latest_fw_version,
-        encrypted_file_path=excluded.encrypted_file_path,
-        decrypted_file_path=excluded.decrypted_file_path;
+        downloaded=excluded.downloaded,
+        decrypted=excluded.decrypted,
+        extracted=excluded.extracted;
     """
     with connect() as conn:
         conn.execute("BEGIN;")
@@ -95,7 +118,7 @@ def find_firmware(version_code: str) -> Optional[FirmwareRecord]:
     sql = """
     SELECT version_code, filename, path, size_bytes,
            logic_value_factory, latest_fw_version,
-           encrypted_file_path, decrypted_file_path
+           downloaded, decrypted, extracted
     FROM firmware
     WHERE version_code=?;
     """
@@ -110,8 +133,9 @@ def find_firmware(version_code: str) -> Optional[FirmwareRecord]:
             size_bytes=row[3],
             logic_value_factory=row[4],
             latest_fw_version=row[5],
-            encrypted_file_path=row[6],
-            decrypted_file_path=row[7],
+            downloaded=row[6],
+            decrypted=row[7],
+            extracted=row[8],
         )
 
 
@@ -129,7 +153,7 @@ def list_firmware(limit: Optional[int] = None) -> Iterable[FirmwareRecord]:
     sql = """
     SELECT version_code, filename, path, size_bytes,
            logic_value_factory, latest_fw_version,
-           encrypted_file_path, decrypted_file_path
+           downloaded, decrypted, extracted
     FROM firmware
     ORDER BY created_at DESC
     """
@@ -146,30 +170,57 @@ def list_firmware(limit: Optional[int] = None) -> Iterable[FirmwareRecord]:
                 size_bytes=row[3],
                 logic_value_factory=row[4],
                 latest_fw_version=row[5],
-                encrypted_file_path=row[6],
-                decrypted_file_path=row[7],
+                downloaded=row[6],
+                decrypted=row[7],
+                extracted=row[8],
             )
 
 
-def update_decrypted_path(version_code: str, decrypted_path: str) -> None:
-    """Update the decrypted file path for a firmware record.
+def update_firmware_status(
+    version_code: str,
+    *,
+    downloaded: Optional[int] = None,
+    decrypted: Optional[int] = None,
+    extracted: Optional[int] = None,
+) -> None:
+    """Update the status flags for a firmware record.
+
+    Updates one or more status flags (downloaded, decrypted, extracted) for a
+    firmware record. The operation is performed within a transaction.
 
     Args:
         version_code: Firmware version identifier.
-        decrypted_path: Absolute path to the decrypted file.
+        downloaded: Set to 0 or 1 to update downloaded status, or None to skip.
+        decrypted: Set to 0 or 1 to update decrypted status, or None to skip.
+        extracted: Set to 0 or 1 to update extracted status, or None to skip.
 
     Raises:
+        ValueError: If all status parameters are None.
         Exception: If the database operation fails.
     """
-    sql = """
-    UPDATE firmware
-    SET decrypted_file_path=?
-    WHERE version_code=?;
-    """
+    updates = []
+    params: list = []
+
+    if downloaded is not None:
+        updates.append("downloaded=?")
+        params.append(downloaded)
+    if decrypted is not None:
+        updates.append("decrypted=?")
+        params.append(decrypted)
+    if extracted is not None:
+        updates.append("extracted=?")
+        params.append(extracted)
+
+    if not updates:
+        raise ValueError("At least one status parameter must be provided")
+
+    params.append(version_code)
+    sql = f"UPDATE firmware SET {', '.join(updates)} WHERE version_code=?;"
+
     with connect() as conn:
         conn.execute("BEGIN;")
         try:
-            conn.execute(sql, (decrypted_path, version_code))
+            conn.execute(sql, params)
             conn.execute("COMMIT;")
         except Exception:
             conn.execute("ROLLBACK;")
