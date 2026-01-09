@@ -9,13 +9,12 @@ decrypting, and extracting in a background thread.
 
 import logging
 import time
-import zipfile
 from pathlib import Path
 from typing import Callable
 
 from device import DeviceNotFoundError, enter_odin_mode, read_device_info_at
 from device.errors import DeviceATError, DeviceError
-from download import check_and_prepare_firmware, download_and_decrypt
+from download import check_and_prepare_firmware, download_and_decrypt, extract_firmware
 from fus.errors import FOTAModelOrRegionNotFound, FOTANoFirmware, InformError
 
 
@@ -328,7 +327,7 @@ class DeviceMonitor:
     def _extract_firmware(self, decrypted_path: Path, version: str) -> None:  # pylint: disable=unused-argument
         """Extract firmware ZIP file and populate component entries.
 
-        Optionally skips HOME_CSC files based on unzip_home_csc setting.
+        Uses the download service to extract the firmware file.
         If Auto FUS Mode checkbox is checked, enters download mode after extraction.
 
         Args:
@@ -336,28 +335,15 @@ class DeviceMonitor:
             version: Firmware version string.
         """
         try:
-            if decrypted_path.exists() and decrypted_path.suffix in [".zip", ".ZIP"]:
+            if decrypted_path.exists() and decrypted_path.suffix.lower() in [".zip"]:
                 self.ui_updater.update_status("Device connected - Extracting firmware")
-                unzip_dir = decrypted_path.parent / decrypted_path.stem
-                unzip_dir.mkdir(parents=True, exist_ok=True)
 
-                with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
-                    members = zip_ref.namelist()
-
-                    # Filter out HOME_CSC files if disabled
-                    if not self.unzip_home_csc:
-                        filtered_members = [m for m in members if not m.startswith("HOME_CSC_")]
-                        skipped_count = len(members) - len(filtered_members)
-                        if skipped_count > 0:
-                            self.logger.info("Skipping %d HOME_CSC files (unzip_home_csc=false)", skipped_count)
-                        members = filtered_members
-
-                    total_files = len(members)
-                    for idx, member in enumerate(members, 1):
-                        if self.stop_check():
-                            raise RuntimeError("Extraction task stopped by user")
-                        zip_ref.extract(member, unzip_dir)
-                        self.progress_callback("extract", idx, total_files)
+                unzip_dir = extract_firmware(
+                    decrypted_path,
+                    skip_home_csc=not self.unzip_home_csc,
+                    progress_cb=self.progress_callback,
+                    stop_check=self.stop_check,
+                )
 
                 self.logger.info("Extracted firmware to %s", unzip_dir)
                 self.ui_updater.populate_component_entries(unzip_dir)
@@ -366,10 +352,13 @@ class DeviceMonitor:
                 if self.autofus_checkbox and self.autofus_checkbox.get():
                     self._enter_download_mode_auto()
 
-        except zipfile.BadZipFile:
-            self.logger.error("File is not a valid ZIP archive")
-        except (OSError, IOError, ValueError) as ex:
-            self.logger.error("Extraction failed: %s", ex)
+        except ValueError as ex:
+            self.logger.error("Extraction error: %s", ex)
+        except (OSError, IOError, RuntimeError) as ex:
+            if "stopped" in str(ex).lower():
+                self.logger.info("Extraction task stopped: %s", ex)
+            else:
+                self.logger.error("Extraction failed: %s", ex)
 
     def _handle_runtime_error(self, ex: RuntimeError) -> None:
         """Handle runtime errors (typically user-stopped tasks).

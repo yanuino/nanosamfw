@@ -107,6 +107,7 @@ from .service import (
     cleanup_repository,
     decrypt_firmware,
     download_and_decrypt,
+    extract_firmware,
     get_or_download_firmware,
     get_session_id,
 )

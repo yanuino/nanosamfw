@@ -11,6 +11,7 @@ decryption services.
 from __future__ import annotations
 
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
@@ -459,3 +460,60 @@ def cleanup_repository(
             )
 
     return stats
+
+
+def extract_firmware(
+    decrypted_path: Path,
+    skip_home_csc: bool = False,
+    progress_cb: Optional[Callable[[str, int, int], None]] = None,
+    stop_check: Optional[Callable[[], bool]] = None,
+) -> Path:
+    """Extract decrypted firmware ZIP file to directory.
+
+    Extracts the firmware ZIP file to a directory with the same name as the file
+    (without extension). Optionally filters out HOME_CSC files during extraction.
+
+    Args:
+        decrypted_path: Path to decrypted firmware ZIP file.
+        skip_home_csc: If True, skip extracting files starting with "HOME_CSC_".
+        progress_cb: Optional callback invoked as progress_cb(stage, done, total)
+            where stage is "extract".
+        stop_check: Optional function returning True if extraction should stop.
+
+    Returns:
+        Path to the extraction directory.
+
+    Raises:
+        ValueError: If the decrypted file does not exist or is not a valid ZIP.
+        RuntimeError: If extraction is stopped by user (stop_check returns True).
+    """
+    if not decrypted_path.exists():
+        raise ValueError(f"Decrypted file not found: {decrypted_path}")
+
+    if decrypted_path.suffix.lower() not in [".zip"]:
+        raise ValueError(f"Expected ZIP file, got: {decrypted_path.suffix}")
+
+    try:
+        unzip_dir = decrypted_path.parent / decrypted_path.stem
+        unzip_dir.mkdir(parents=True, exist_ok=True)
+
+        with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
+            members = zip_ref.namelist()
+
+            # Filter out HOME_CSC files if requested
+            if skip_home_csc:
+                filtered_members = [m for m in members if not m.startswith("HOME_CSC_")]
+                members = filtered_members
+
+            total_files = len(members)
+            for idx, member in enumerate(members, 1):
+                if stop_check and stop_check():
+                    raise RuntimeError("Extraction task stopped by user")
+                zip_ref.extract(member, unzip_dir)
+                if progress_cb:
+                    progress_cb("extract", idx, total_files)
+
+        return unzip_dir
+
+    except zipfile.BadZipFile as ex:
+        raise ValueError(f"Invalid ZIP file: {decrypted_path}") from ex
