@@ -264,6 +264,10 @@ class DeviceMonitor:
                 resume=True,
                 progress_cb=self.progress_callback,
                 stop_check=self.stop_check,
+                serial_number=device.serial_number,
+                lock_status=device.lock_status,
+                aid=device.aid,
+                cc=device.cc,
             )
 
             msg = f"Cached firmware ready! Version: {firmware.version_code}"
@@ -305,6 +309,10 @@ class DeviceMonitor:
                 resume=True,
                 progress_cb=self.progress_callback,
                 stop_check=self.stop_check,
+                serial_number=device.serial_number,
+                lock_status=device.lock_status,
+                aid=device.aid,
+                cc=device.cc,
             )
 
             msg = f"Download complete! Version: {firmware.version_code}"

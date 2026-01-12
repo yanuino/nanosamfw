@@ -324,6 +324,10 @@ def download_and_decrypt(
     resume: bool = True,
     progress_cb: Optional[Callable[[str, int, int], None]] = None,
     stop_check: Optional[Callable[[], bool]] = None,
+    serial_number: Optional[str] = None,
+    lock_status: Optional[str] = None,
+    aid: Optional[str] = None,
+    cc: Optional[str] = None,
 ) -> tuple[FirmwareRecord, str]:
     """Complete workflow: check FOTA, download, and decrypt firmware.
 
@@ -347,6 +351,10 @@ def download_and_decrypt(
         resume: Resume partial downloads when True.
         progress_cb: Unified callback for both stages.
         stop_check: Optional callable that returns True if task should stop.
+        serial_number: Optional device serial number (for IMEI log).
+        lock_status: Optional device lock status (for IMEI log).
+        aid: Optional device AID (for IMEI log).
+        cc: Optional device country code (for IMEI log).
 
     Returns:
         (FirmwareRecord, decrypted_file_path)
@@ -356,7 +364,16 @@ def download_and_decrypt(
     """
     # 1. Resolve version and check cache
     if not version:
-        version, _is_cached = check_and_prepare_firmware(model, csc, device_id, current_firmware)
+        version, _is_cached = check_and_prepare_firmware(
+            model,
+            csc,
+            device_id,
+            current_firmware,
+            serial_number=serial_number,
+            lock_status=lock_status,
+            aid=aid,
+            cc=cc,
+        )
     else:
         version = normalize_vercode(version)
 
@@ -389,6 +406,10 @@ def download_and_decrypt(
             csc=csc,
             version_code=current_firmware,
             fota_version=version,
+            serial_number=serial_number,
+            lock_status=lock_status,
+            aid=aid,
+            cc=cc,
             status_fus="error",
             status_upgrade="unknown",
         )
@@ -403,6 +424,10 @@ def download_and_decrypt(
         csc=csc,
         version_code=current_firmware,
         fota_version=version,
+        serial_number=serial_number,
+        lock_status=lock_status,
+        aid=aid,
+        cc=cc,
         status_fus="ok",  # Firmware obtained successfully
         status_upgrade="unknown",  # Firmware flashing not implemented
     )
