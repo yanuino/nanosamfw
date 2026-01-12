@@ -114,11 +114,12 @@ class UIUpdater:
 
         self.root.after(0, _update)
 
-    def populate_component_entries(self, unzip_dir: Path) -> None:
+    def populate_component_entries(self, unzip_dir: Path, ignore_home_csc: bool = False) -> None:
         """Populate firmware component entries from unzipped directory.
 
         Args:
             unzip_dir: Directory containing unzipped firmware files.
+            ignore_home_csc: If True, don't display HOME_CSC component in UI.
         """
 
         def _set(e: ctk.CTkEntry, text: str):
@@ -148,7 +149,9 @@ class UIUpdater:
             _set(self.widgets["bl_entry"], components["BL"] or "-")
             _set(self.widgets["cp_entry"], components["CP"] or "-")
             _set(self.widgets["csc_entry"], components["CSC"] or "-")
-            _set(self.widgets["home_entry"], components["HOME"] or "-")
+            # Show HOME_CSC unless explicitly ignored
+            home_value = "-" if ignore_home_csc else (components["HOME"] or "-")
+            _set(self.widgets["home_entry"], home_value)
 
         self.root.after(0, _update)
 

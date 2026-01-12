@@ -481,7 +481,6 @@ def cleanup_repository(
 def extract_firmware(
     decrypted_path: Path,
     version_code: Optional[str] = None,
-    skip_home_csc: bool = False,
     cleanup_after: bool = False,
     progress_cb: Optional[Callable[[str, int, int], None]] = None,
     stop_check: Optional[Callable[[], bool]] = None,
@@ -490,14 +489,13 @@ def extract_firmware(
 
     Extracts the firmware ZIP file to a directory with the same name as the file
     (without extension). Computes MD5 checksums for all extracted components and
-    stores them in the database. Optionally filters out HOME_CSC files during
-    extraction and cleans up encrypted/decrypted files after successful extraction.
+    stores them in the database. Cleans up encrypted/decrypted files after successful
+    extraction if requested.
 
     Args:
         decrypted_path: Path to decrypted firmware ZIP file.
         version_code: Firmware version code for component tracking. If provided,
             components are stored in database and firmware extracted flag is set.
-        skip_home_csc: If True, skip extracting files starting with "HOME_CSC_".
         cleanup_after: If True, delete encrypted and decrypted files after successful
             extraction and checksum computation.
         progress_cb: Optional callback invoked as progress_cb(stage, done, total)
@@ -524,12 +522,7 @@ def extract_firmware(
         # Extract files
         with zipfile.ZipFile(decrypted_path, "r") as zip_ref:
             members = zip_ref.namelist()
-
-            # Filter out HOME_CSC files if requested
-            if skip_home_csc:
-                filtered_members = [m for m in members if not m.startswith("HOME_CSC_")]
-                members = filtered_members
-
+            # Always extract all files - no filtering at service level
             total_files = len(members)
             for idx, member in enumerate(members, 1):
                 if stop_check and stop_check():

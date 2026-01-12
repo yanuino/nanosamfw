@@ -34,7 +34,7 @@ class DeviceMonitor:
         stop_check: Function that returns True if task should stop.
         disconnect_callback: Optional callback invoked when device disconnects.
         csc_filter: Set of allowed CSC codes (empty = accept all).
-        unzip_home_csc: Whether to extract HOME_CSC files during extraction.
+        ignore_home_csc: Whether to hide HOME_CSC files from the UI display.
         logger: Logger instance.
     """
 
@@ -45,7 +45,7 @@ class DeviceMonitor:
         stop_check: Callable[[], bool],
         disconnect_callback: Callable[[], None] | None = None,
         csc_filter: list[str] | None = None,
-        unzip_home_csc: bool = True,
+        ignore_home_csc: bool = False,
         autofus_checkbox=None,
     ):
         """Initialize device monitor.
@@ -57,7 +57,7 @@ class DeviceMonitor:
             disconnect_callback: Optional callback invoked when device disconnects.
             csc_filter: Optional list of allowed CSC codes (case-insensitive).
                 Empty list = accept all devices. Non-empty = only accept listed CSCs.
-            unzip_home_csc: Whether to extract HOME_CSC files when unzipping firmware.
+            ignore_home_csc: Whether to hide HOME_CSC files from UI display.
             autofus_checkbox: Optional reference to the Auto FUS Mode checkbox widget.
                 If provided, its current state is checked at runtime for entering download mode.
         """
@@ -66,7 +66,7 @@ class DeviceMonitor:
         self.stop_check = stop_check
         self.disconnect_callback = disconnect_callback
         self.csc_filter: set[str] = {c.strip().upper() for c in csc_filter} if csc_filter else set()
-        self.unzip_home_csc = unzip_home_csc
+        self.ignore_home_csc = ignore_home_csc
         self.autofus_checkbox = autofus_checkbox
         self.logger = logging.getLogger(__name__)
         self.monitoring = False
@@ -343,14 +343,13 @@ class DeviceMonitor:
                 unzip_dir = extract_firmware(
                     decrypted_path,
                     version_code=version,
-                    skip_home_csc=not self.unzip_home_csc,
                     cleanup_after=True,  # Clean up encrypted and decrypted files
                     progress_cb=self.progress_callback,
                     stop_check=self.stop_check,
                 )
 
                 self.logger.info("Extracted firmware to %s", unzip_dir)
-                self.ui_updater.populate_component_entries(unzip_dir)
+                self.ui_updater.populate_component_entries(unzip_dir, ignore_home_csc=self.ignore_home_csc)
 
                 # Check if Auto FUS Mode checkbox is currently checked
                 if self.autofus_checkbox and self.autofus_checkbox.get():

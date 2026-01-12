@@ -7,4 +7,4 @@ auto_fusmode = false # If true, the application will automatically enter the dev
 csc_filter = ""    # Comma-separated list of CSC codes to filter devices. Leave empty ("") to disable filtering.
 
 [firmware]
-unzip_home_csc = false  # If false, the application will not unzip the Home CSC file when extracting firmware packages.
+ignore_home_csc = false  # If true, the application will hide the HOME_CSC file in the UI (but it will still be extracted).
